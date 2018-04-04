@@ -1,32 +1,51 @@
-#!/usr/bin/env python
-
 """
-class tinypsf that can generate hst psf array in the flt image frame. 
+tinypsf uses tinytim to generate hst psf model in the flt frame. 
 """
-
-__author__ = "Ai-Lei Sun"
-__copyright__ = "Copyright 2018, TinyFitter"
-
-__license__ = "MIT"
-__version__ = "0.0.0"
-__maintainer__ = "Ai-Lei Sun"
-__email__ = "aileisundr@gmail.com"
-__status__ = "Prototype"
-
 
 import os
-from astropy.io import fits
 import numpy as np
+from astropy.io import fits
+from astropy.io import ascii
 
 from . import call_tinytim
 
 
+class psfobj(object):
+	def __init__(self, data, pixsize, subsample=1):
+		"""
+		psfobj (class)
+
+		Contains psf information -- data, pixsize, subsample. 
+
+		Params
+		------
+		data (2d np array)
+		pixsize (float)
+			size in arcsec
+		subsample=1 (int)
+			subsampling factor
+
+		Attributes
+		----------
+		data
+		pixsize
+		subsample
+		nx
+		ny
+		"""
+		self.data = data
+		self.pixsize = pixsize
+		self.subsample = subsample
+		self.ny, self.nx = self.data.shape
+
+
+
 class tinypsf(object):
-	def __init__(self, camera='wfc3_ir', detector=0, filter='f160w', position=[500, 500], spectrum_form='stellar', spectrum_type='f8v', diameter=5, focus=0., dir_out='./', fn='psf_temporary', ): 
+	def __init__(self, camera='wfc3_ir', detector=0, filter='f160w', position=[500, 500], spectrum_form='stellar', spectrum_type='f8v', diameter=5, focus=0., subsample=1, dir_out='./', fn='psf_temporary', ): 
 		"""
 		tinypsf (class)
 
-		Calls tinytim to produce hst psf in flt frame given the input parameters. 
+		Calls tinytim to produce hst psf in flt frame given the input parameters. Currently it is used for only ACS and WFC3. 
 
 		The produced psf is named: 
 			dir_out+fn+'.fits'
@@ -53,6 +72,8 @@ class tinypsf(object):
 			diameter of the psf in arcsec
 		focus = 0. (float)
 			Focus, secondary mirror despace? [microns]
+		subsample = 1 (int)
+			Subsampling parameter. If it's larger than 1, then the final psf is oversampled by this factor. 
 		dir_out = './' (str)
 		fn = 'psf_temporary' (str)
 			Rootname fn for the produced file with no extension. The output psf is dir_out+fn+'.fits'
@@ -68,11 +89,12 @@ class tinypsf(object):
 		spectrum_form
 		spectrum_type
 		focus
+		subsample
 
 		Methods
 		-------
 		make_psf()
-		read_psf()
+		get_psf()
 		"""
 
 		self.dir_out = dir_out
@@ -88,6 +110,7 @@ class tinypsf(object):
 		self.spectrum_type = spectrum_type
 		self.diameter = diameter
 		self.focus = focus
+		self.subsample = subsample
 
 		# the output file fn of tinytim
 		self.fp_psf = self.dir_out+self.fn+'.fits'
@@ -96,14 +119,13 @@ class tinypsf(object):
 		self.dir_tinytim = os.environ['TINYTIM']+'/'
 
 
-	def make_psf(self, run_tiny3=False):
+	def make_psf(self):
 		"""
 		Call tinytim to produce psf. 
 
 		Params
 		------
-		run_tiny3=False (bool)
-			If true then run tiny3 and use it's output as results. Otherwise the result is tiny2 result. 
+		None
 
 		Return
 		------
@@ -118,7 +140,7 @@ class tinypsf(object):
 
 			self.rootname+'.param'
 			self.rootname+'.tt3'
-			self.rootname+'00_psf.fits'
+			self.rootname+'00_psf.fits' (only for some cameras)
 		"""
 		if not os.path.isdir(self.dir_out):
 			os.makedirs(self.dir_out)
@@ -127,21 +149,27 @@ class tinypsf(object):
 
 		status2 = call_tinytim.tiny2(dir_code=self.dir_tinytim, fn=self.fp_param, rootname=self.rootname) 
 
-		if not run_tiny3:
-			os.rename(self.rootname+'00_psf.fits', self.fp_psf)
-			status_final = os.path.isfile(self.fp_psf)
-			status = np.all([status1, status2, status_final])
-			return status
+		# for those camera that require tiny3 to do distortion and diffusion. 
+		tiny3_cameras = ['acs_widefield', 'acs_highres', 'acs_coronoffspot', 'acs_solarblind', 'wfc3_uvis', 'wfc3_ir']
 
-		else:
-			status3 = call_tinytim.tiny3(dir_code=self.dir_tinytim, fn=self.fp_param, rootname=self.rootname) 
-			os.rename(self.rootname+'00.fits', self.fp_psf)
-			status_final = os.path.isfile(self.fp_psf)
-			status = np.all([status1, status2, status3, status_final])
-			return status
+		if self.camera in tiny3_cameras:
+			status3 = call_tinytim.tiny3(dir_code=self.dir_tinytim, fn=self.fp_param, rootname=self.rootname, subsample=self.subsample)
+			if self.subsample > 1: 
+				print("NOTE : Subsampled, so not convolving with charge diffusion kernel. Additional convolution required. ")
+			status_tiny = np.all([status1, status2, status3])
+		else: 
+			status_tiny = np.all([status1, status2, ])
+
+		os.rename(self.rootname+'00.fits', self.fp_psf)
+		status_final = os.path.isfile(self.fp_psf)
+		status = (status_tiny & status_final)
+
+		if staus: 
+			self.load_psf()
+		return status
 
 
-	def read_psf(self):
+	def get_psf(self):
 		"""
 		read and return psf np array
 
@@ -153,4 +181,54 @@ class tinypsf(object):
 		------
 		psf (np array)
 		"""
+		if not os.path.isfile(self.fp_psf):
+			self.make_psf()
+
 		return fits.getdata(self.fp_psf)
+
+
+	def load_psf(self):
+		"""
+		Load psf and its meta data from file to create object self.psf, which contains: 
+
+		self.psf.data
+		self.psf.pixsize
+		self.psf.subsample
+		self.psf.require_diffusion
+		self.psf.diffusion_kernel
+
+		Some of the oversampled psf required difussion after resampled to normal pixsize, in which cases self.psf.require_diffusion is True and the kernel for the convolution is in self.psf.diffusion_kernel. 
+
+		Params
+		------
+		None
+
+		Return
+		------
+		status (bool)
+		"""
+
+		hdus = fits.open(self.fp_psf)
+		data = hdus[0].data
+		header = hdus[0].header
+		pixsize = header['PIXSCALE']
+
+		self.psf = psfobj(data=data, pixsize=pixsize, subsample=self.subsample)
+		self.psf.header = header
+
+		if 'COMMENT' in header:
+			sub_phrase = 'This PSF is subsampled, so the charge diffusion kernel'
+			self.psf.require_diffusion = sub_phrase in header['COMMENT'][0]
+		else: 
+			self.psf.require_diffusion = False
+
+		if self.psf.require_diffusion:
+			tab = ascii.read(header['COMMENT'][3:6])
+			self.psf.diffusion_kernel = np.array([tab[col] for col in tab.colnames])
+			assert self.psf.diffusion_kernel.shape == (3, 3)
+
+		else: 
+			self.psf.diffusion_kernel = None
+
+		status = type(self.psf) is psfobj
+		return status

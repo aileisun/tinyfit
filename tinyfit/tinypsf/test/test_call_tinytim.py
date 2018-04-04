@@ -27,15 +27,16 @@ def setUp_tearDown():
 		shutil.rmtree(dir_testing)
 	os.mkdir(dir_testing)
 
-	yield
-	# tear down
-	if os.path.isdir(dir_testing):
-		shutil.rmtree(dir_testing)
+	# yield
+	# # tear down
+	# if os.path.isdir(dir_testing):
+	# 	shutil.rmtree(dir_testing)
 
 
 def test_calltinytim_tiny1_wfc3():
 	"""
 	# manual tiny1 setup: 
+	> tiny1 j1652_wfc3.param
 	Camera: 
 		23) WFC3 IR channel
 	Position: 
@@ -109,7 +110,7 @@ def test_calltinytim_tiny3_wfc3():
 	fn = dir_testing+name+'.param'
 	rootname = dir_testing+name
 
-	status = call_tinytim.tiny3(dir_code=dir_code, fn=fn, rootname=rootname)
+	status = call_tinytim.tiny3(dir_code=dir_code, fn=fn, rootname=rootname, subsample=1)
 
 	assert status
 	suffix = '00.fits'
@@ -119,6 +120,62 @@ def test_calltinytim_tiny3_wfc3():
 	data_testing = fits.getdata(fn_testing)
 	assert np.all(data_testing == data_verif)
 
+
+
+def test_calltinytim_tiny3_wfc3_subsample5():
+	"""
+	check that correct file is produced with the correct content. 
+
+	# to produce the test file
+	> tiny1 j1652_wfc3_sub5.param
+
+		Camera: 
+			23) WFC3 IR channel
+		Position: 
+			563 561 
+			(the img x, y position as read from the `id9ya9v8q_ima.fits` file). 
+		Select filter passband: 
+			f160w
+		object spectrum:  **Random guess — to be improved**
+			1) Select a spectrum from list. 
+			10   F8V      0.62   0.48   0.37   0.68   0.98   1.25
+		What diameter should your PSF be (in arcseconds)? : 
+			3
+		Focus, secondary mirror despace? [microns]: 
+			-0.5 
+		Rootname of PSF image files (no extension) :
+			j1652_wfc3_sub5
+
+
+	> tiny2 j1652_wfc3_sub5.param
+
+	> tiny3 j1652_wfc3_sub5.param sub=5
+
+	#   NOTE : Subsampled, so not convolving with charge diffusion kernel.
+
+	# output files
+
+	j1652_wfc3_sub5.param
+	j1652_wfc3_sub5.tt3
+	j1652_wfc3_sub500_psf.fits
+	j1652_wfc3_sub500.fits
+	"""
+	test_calltinytim_tiny1_wfc3()
+	test_calltinytim_tiny2_wfc3()
+
+	name = 'j1652_wfc3'
+	fn = dir_testing+name+'.param'
+	rootname = dir_testing+name
+
+	status = call_tinytim.tiny3(dir_code=dir_code, fn=fn, rootname=rootname, subsample=5)
+
+	assert status
+	suffix = '00.fits'
+	fn_verif = dir_verif+'j1652_wfc3_sub500.fits'
+	fn_testing = dir_testing+name+suffix
+	data_verif = fits.getdata(fn_verif)
+	data_testing = fits.getdata(fn_testing)
+	assert np.all(data_testing == data_verif)
 
 def test_calltinytim_tiny1_acs():
 	"""

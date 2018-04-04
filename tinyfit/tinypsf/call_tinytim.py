@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """
 collection of functions for calling tinytim
 
@@ -7,16 +5,6 @@ collection of functions for calling tinytim
 	tiny2()
 	tiny3()
 """
-
-__author__ = "Ai-Lei Sun"
-__copyright__ = "Copyright 2018, TinyFitter"
-
-__license__ = "MIT"
-__version__ = "0.0.0"
-__maintainer__ = "Ai-Lei Sun"
-__email__ = "aileisundr@gmail.com"
-__status__ = "Prototype"
-
 
 import os
 import pexpect
@@ -226,13 +214,13 @@ def tiny2(dir_code, fn, rootname='temporary'):
 	return status
 
 
-def tiny3(dir_code, fn, rootname='temporary'):
+def tiny3(dir_code, fn, rootname='temporary', subsample=1):
 	"""
 	call tiny3 with input params to write output psf. 
 
 	Example
 	-------
-	tiny3(dir_code='where/is/tiny/tinytim/code/', fn='test.param')
+	tiny3(dir_code='where/is/tiny/tinytim/code/', fn='test.param', sumsample=1)
 
 	Return
 	------
@@ -253,8 +241,16 @@ def tiny3(dir_code, fn, rootname='temporary'):
 	fn (str):
 		file path to the param file produced by tiny1, e.g., 'test.param'. 
 
+	rootname=temporary (str):
+		rootname that was entered in tiny1. It's only used to check if the proper files are created. 
+
+	subsample (int):
+		subsampling parameter. Set to larger than 1 to increase the sampling. 
+
 	"""
-	command = dir_code+'tiny3 '+fn
+
+	command = '{dir_code}tiny3 {fn} sub={sub}'.format(dir_code=dir_code, fn=fn, sub=subsample)
+	# command = dir_code+'tiny3 '+fn+' sub='+str(subsample)
 	os.system(command)
 
 	status = os.path.isfile(rootname+'00.fits')
