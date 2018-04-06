@@ -67,7 +67,7 @@ def test_tinypsf_make_psf():
 	# check that psf meta data is loaded properly
 	status = t.load_psf()
 	assert status
-	assert type(t.psf.array) is np.ndarray
+	assert type(t.psf.data) is np.ndarray
 	assert t.psf.subsample == 1
 	assert t.psf.pixsize == 0.130
 	assert t.psf.require_diffusion == False
@@ -97,7 +97,7 @@ def test_tinypsf_make_psf_subsample5():
 	# check that psf meta data is loaded properly
 	status = t.load_psf()
 	assert status
-	assert type(t.psf.array) is np.ndarray
+	assert type(t.psf.data) is np.ndarray
 	assert t.psf.subsample == 5
 	assert t.psf.pixsize == 0.0260
 	assert t.psf.require_diffusion == True

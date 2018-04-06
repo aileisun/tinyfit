@@ -8,78 +8,26 @@ from astropy.io import fits
 from astropy.io import ascii
 
 from . import call_tinytim
-
-
-class psfobj(object):
-	def __init__(self, data, pixsize, subsample=1):
-		"""
-		psfobj (class)
-
-		Contains psf information -- data, pixsize, subsample. 
-
-		Params
-		------
-		data (2d np array)
-		pixsize (float)
-			size in arcsec
-		subsample=1 (int)
-			subsampling factor
-
-		Attributes
-		----------
-		data
-		pixsize
-		subsample
-		nx
-		ny
-		"""
-		self.data = data
-		self.pixsize = pixsize
-		self.subsample = subsample
-		self.ny, self.nx = self.data.shape
-
+from ..imgobj import imgobj
 
 
 class tinypsf(object):
-	def __init__(self, camera='wfc3_ir', detector=0, filter='f160w', position=[500, 500], spectrum_form='stellar', spectrum_type='f8v', diameter=5, focus=0., subsample=1, dir_out='./', fn='psf_temporary', ): 
-		"""
-		tinypsf (class)
+	"""Use tinytim to create HST PSF model in the flt frame. 
 
-		Calls tinytim to produce hst psf in flt frame given the input parameters. Currently it is used for only ACS and WFC3. 
+	Example: 
+		>>> t = tinypsf(dir_out='./', fn='my_object', camera='wfc3_ir', filter='f160w', position=[563, 561], spectrum_form='stellar', spectrum_type='f8v', diameter=3, focus=-0.5, subsample=1)
+		>>> status = t.make_psf()
+		>>> t.psf.data
+		>>> t.psf.writeto('psf.fits')
 
+	Note:
+		It has only been tested for ACS and WFC3. 
 		The produced psf is named: 
 			dir_out+fn+'.fits'
-
-		Requirement
-		-----------
+	Requirement:
 		Tinytim 7.5 installed and linked. The environmental variable TINYTIM has to be set to the directory where tinytim is. 
 
-		Params
-		------
-		camera = 'wfc3_ir' (str)
-			e.g., 'wfc3_ir'
-		detector = 0 (int)
-			e.g., 1 or 2. Only for when camera == 'acs_widefield'.
-		filter = 'f160w' (str)
-			e.g., 'f160w'
-		position = [500, 500] (list)
-			The position of the target in the _flt.fits file, e.g., [567, 789]	
-		spectrum_form = 'stellar' (str)
-			'stellar', 'blackbody', 'powerlaw_nu', 'powerlaw_lam', or 'user'
-		spectrum_type = 'f8v' (str)
-			input depends on spectrum_form
-		diameter = 5 (float)
-			diameter of the psf in arcsec
-		focus = 0. (float)
-			Focus, secondary mirror despace? [microns]
-		subsample = 1 (int)
-			Subsampling parameter. If it's larger than 1, then the final psf is oversampled by this factor. 
-		dir_out = './' (str)
-		fn = 'psf_temporary' (str)
-			Rootname fn for the produced file with no extension. The output psf is dir_out+fn+'.fits'
-
-		Attributes
-		----------
+	Attributes:
 		dir_out
 		fp_psf
 		fn
@@ -91,17 +39,38 @@ class tinypsf(object):
 		focus
 		subsample
 
-		Methods
-		-------
+	Methods:
 		make_psf()
 		get_psf()
+
+	"""
+	def __init__(self, camera='wfc3_ir', detector=0, filter='f160w', position=[500, 500], spectrum_form='stellar', spectrum_type='f8v', diameter=5, focus=0., subsample=1, dir_out='./', fn='psf_temporary', ): 
+		"""initiate psf 
+		Params:
+			camera = 'wfc3_ir' (str)
+				e.g., 'wfc3_ir'
+			detector = 0 (int)
+				e.g., 1 or 2. Only for when camera == 'acs_widefield'.
+			filter = 'f160w' (str)
+				e.g., 'f160w'
+			position = [500, 500] (list)
+				The position of the target in the _flt.fits file, e.g., [567, 789]	
+			spectrum_form = 'stellar' (str)
+				'stellar', 'blackbody', 'powerlaw_nu', 'powerlaw_lam', or 'user'
+			spectrum_type = 'f8v' (str)
+				input depends on spectrum_form
+			diameter = 5 (float)
+				diameter of the psf in arcsec
+			focus = 0. (float)
+				Focus, secondary mirror despace? [microns]
+			subsample = 1 (int)
+				Subsampling parameter. If it's larger than 1, then the final psf is oversampled by this factor. 
+			dir_out = './' (str)
+			fn = 'psf_temporary' (str)
+				Rootname fn for the produced file with no extension. The output psf is dir_out+fn+'.fits'
 		"""
 
-		self.dir_out = dir_out
-		self.fn = os.path.splitext(fn)[0]
-		self.rootname = self.dir_out+self.fn
-		self.fp_param = self.dir_out+self.fn+'.param'
-
+		# tiny params
 		self.camera = camera
 		self.detector = detector
 		self.filter = filter
@@ -112,11 +81,20 @@ class tinypsf(object):
 		self.focus = focus
 		self.subsample = subsample
 
-		# the output file fn of tinytim
-		self.fp_psf = self.dir_out+self.fn+'.fits'
+		# filename
+		self.set_filename(dir_out=dir_out, fn=fn, )
 
 		# the environmental varaible to attribute 
 		self.dir_tinytim = os.environ['TINYTIM']+'/'
+
+
+	def set_filename(self, dir_out='./', fn='psf_temporary', ):
+		self.dir_out = dir_out
+		self.fn = os.path.splitext(fn)[0]
+		self.rootname = self.dir_out+self.fn
+		self.fp_param = self.dir_out+self.fn+'.param'
+		self.fp_psf = self.dir_out+self.fn+'.fits'
+
 
 
 	def make_psf(self):
@@ -164,22 +142,19 @@ class tinypsf(object):
 		status_final = os.path.isfile(self.fp_psf)
 		status = (status_tiny & status_final)
 
-		if staus: 
+		if status: 
 			self.load_psf()
 		return status
 
 
 	def get_psf(self):
-		"""
-		read and return psf np array
+		"""read and return psf np array
 
-		Params
-		------
-		none
+		Args:
+			None
 
-		Return
-		------
-		psf (np array)
+		Return:
+			psf (np array)
 		"""
 		if not os.path.isfile(self.fp_psf):
 			self.make_psf()
@@ -188,8 +163,7 @@ class tinypsf(object):
 
 
 	def load_psf(self):
-		"""
-		Load psf and its meta data from file to create object self.psf, which contains: 
+		"""Load psf and its meta data from file to create object self.psf, which is an imgobj object that contains: 
 
 		self.psf.data
 		self.psf.pixsize
@@ -199,13 +173,11 @@ class tinypsf(object):
 
 		Some of the oversampled psf required difussion after resampled to normal pixsize, in which cases self.psf.require_diffusion is True and the kernel for the convolution is in self.psf.diffusion_kernel. 
 
-		Params
-		------
-		None
+		Args:
+			None
 
-		Return
-		------
-		status (bool)
+		Return:
+			status (bool)
 		"""
 
 		hdus = fits.open(self.fp_psf)
@@ -213,7 +185,8 @@ class tinypsf(object):
 		header = hdus[0].header
 		pixsize = header['PIXSCALE']
 
-		self.psf = psfobj(data=data, pixsize=pixsize, subsample=self.subsample)
+		self.psf = imgobj(data=data, pixsize=pixsize)
+		self.psf.subsample=self.subsample
 		self.psf.header = header
 
 		if 'COMMENT' in header:
@@ -230,5 +203,5 @@ class tinypsf(object):
 		else: 
 			self.psf.diffusion_kernel = None
 
-		status = type(self.psf) is psfobj
+		status = type(self.psf) is imgobj
 		return status
