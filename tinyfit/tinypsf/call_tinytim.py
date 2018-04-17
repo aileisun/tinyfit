@@ -140,19 +140,19 @@ def tiny1(dir_code, fn, camera='wfc3_ir', detector=0, position=[500, 500], filte
 	time.sleep(n)
 	# spectrum type 
 	if spectrum_form=='stellar':
-		p.expect('Enter spectrum # : ')
+		p.expect(': ')
 		p.sendline(str(td.dict_spectrum_stellar[spectrum_type]))
 	elif spectrum_form=='blackbody':
-		p.expect('Enter temperature (Kelvin) : ')
+		p.expect(': ')
 		p.sendline(str(spectrum_type))
 	elif spectrum_form=='powerlaw_nu':
-		p.expect('Enter the spectral index (alpha) : ')
+		p.expect(': ')
 		p.sendline(str(spectrum_type))
 	elif spectrum_form=='powerlaw_lam':
-		p.expect('Enter the spectral index (beta) : ')
+		p.expect(': ')
 		p.sendline(str(spectrum_type))
 	elif spectrum_form=='user':
-		p.expect('Enter name of spectrum file : ')
+		p.expect(': ')
 		p.sendline(str(spectrum_type))
 	else:
 		raise Exception("Spectrum type not understood. ")

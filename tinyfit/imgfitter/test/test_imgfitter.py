@@ -3,6 +3,7 @@ import os
 import numpy as np
 from astropy.io import fits
 import shutil
+import json
 
 from ..imgfitter import imgfitter
 from ...tinypsf import tinypsf
@@ -39,7 +40,7 @@ def test_imgfitter_initiate():
 	assert f.img.pixsize == 0.13
 
 
-def test_imgfitter_cropimg():
+def test_imgfitter_crop():
 
 	xstar, ystar = 512, 511
 	nx, ny = 64, 64
@@ -62,6 +63,12 @@ def test_imgfitter_cropimg():
 	xstar_test2, ystar_test2 = f._cropxy_to_xy(x=nx//2+1, y=ny//2+2)
 	assert (xstar_test2, ystar_test2) == (xstar+1, ystar+2)
 
+	img_uncrop = f._uncrop(f.img_crop, xc=xstar, yc=ystar)
+	assert img_uncrop.data.shape == f.img.data.shape
+	assert img_uncrop.data.max() == f.img_crop.data.max()
+	assert img_uncrop.data[ystar, xstar] == f.img_crop.data[ny//2, nx//2]
+	img_uncrop.writeto(dir_testing+'img_uncrop.fits')
+
 
 def test_imgfitter_resample_model():
 
@@ -75,7 +82,7 @@ def test_imgfitter_resample_model():
 	f = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny)
 	f.set_model(filename=fn_model)
 
-	model_resamp = f._get_shifted_resampled_model(model=f.model_init, dx=dx, dy=dy, scale=scale)
+	model_resamp = f._get_shifted_scaled_resampled_model(model=f.model_init, dx=dx, dy=dy, scale=scale)
 
 	assert np.absolute(np.sum(model_resamp.data)/scale - np.sum(f.model_init.data))/np.sum(f.model_init.data) < 1.e-5
 
@@ -94,8 +101,10 @@ def test_imgfitter_fit():
 	f = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny, )
 	f.set_model(filename=fn_model)
 
+	# no gaussian smoothing
 	status = f.fit(x=xstar, y=ystar)
 
+	chisq_nogauss = f.result.chisq
 	assert status
 	assert f.result.chisq > 0.
 
@@ -104,6 +113,96 @@ def test_imgfitter_fit():
 
 	f.img_crop_residual.writeto(dir_testing+'residual.fits')
 	assert os.path.isfile(dir_testing+'residual.fits')
+
+	f.img_bestfit.writeto(dir_testing+'img_bestfit.fits')
+	assert os.path.isfile(dir_testing+'img_bestfit.fits')
+	assert f.img_bestfit.data.shape == fits.getdata(fn).shape
+
+
+
+def test_imgfitter_fit_gaussiansmoothing():
+
+	xstar, ystar = 512, 511
+	nx, ny = 64, 64
+
+	fn = dir_verif+'science_img.fits'
+	fn_model = dir_verif+'j1652_wfc3_sub5.fits'
+
+	f = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny, )
+	f.set_model(filename=fn_model)
+
+	# no gaussian smoothing
+	status = f.fit(x=xstar, y=ystar)
+
+	chisq_nogauss = f.result.chisq
+	assert status
+	assert f.result.chisq > 0.
+
+	assert f.img_crop_bestfit.data.shape == (ny, nx)
+	assert f.img_crop_residual.data.shape == (ny, nx)
+
+	f.img_crop_residual.writeto(dir_testing+'residual.fits')
+	assert os.path.isfile(dir_testing+'residual.fits')
+
+	# with gaussian smoothing
+	freeparams = ['dx', 'dy', 'scale', 'sigma']
+	status = f.fit(x=xstar, y=ystar, freeparams=freeparams)
+	chisq_gauss = f.result.chisq
+	f.img_crop_bestfit.writeto(dir_testing+'sigma_bestfit.fits')
+	f.img_crop_residual.writeto(dir_testing+'sigma_residual.fits')
+
+	# assert smoothing is better
+	assert chisq_gauss < chisq_nogauss
+	assert f.result.params.sigma > 0.
+
+
+def test_imgfitter_hyperfit():
+
+	# img
+	pixsize_img = 0.13
+	fn_img = dir_verif+'science_img.fits'
+	nx, ny = 64, 64
+
+	# psf
+	xstar, ystar = 512, 511
+	camera = 'wfc3_ir'
+	filter = 'f160w'
+	spectrum_form = 'stellar'
+	spectrum_type = 'k7v'
+	diameter = 6
+	focus = -0.5
+	subsample = 5
+	fn_psf = 'j1652_wfc3_star1'
+
+	tpsf = tinypsf(camera=camera, filter=filter, position=[xstar, ystar], spectrum_form=spectrum_form, spectrum_type=spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn=fn_psf, dir_out=dir_testing)
+
+	f = imgfitter(filename=fn_img, pixsize=pixsize_img, nx=nx, ny=ny)
+	f.set_model(tinypsf=tpsf)
+
+	# normal fit
+	f.fit(x=xstar, y=ystar)
+	chisq_normal = f.result.chisq
+	focus_normal = f.hypermodel_init.focus
+	f.img_crop_residual.writeto(dir_testing+'residual.fits')
+
+	# hyper fit
+	f.hyperfit(x=xstar, y=ystar, freehyperparams=['focus'])
+	chisq_hyper = f.result.chisq
+	focus_hyper = f.result.hyperparams.focus
+	f.img_crop_residual.writeto(dir_testing+'hyper_residual.fits')
+
+	assert chisq_hyper < chisq_normal
+	assert focus_normal != focus_hyper
+
+	# hyper fit with smoothing
+	freeparams = ['dx', 'dy', 'scale', 'sigma']
+	f.hyperfit(x=xstar, y=ystar, freeparams=freeparams, freehyperparams=['focus'])
+	chisq_hypersmooth = f.result.chisq
+	f.img_crop_residual.writeto(dir_testing+'hypersmooth_residual.fits')
+
+	# assert chisq_hypersmooth < chisq_hyper
+	assert f.result.params.sigma > 0.
+	assert chisq_hypersmooth != chisq_hyper
 
 
 def test_imgfitter_charge_diffusion():
@@ -134,44 +233,6 @@ def test_imgfitter_charge_diffusion():
 	# comparison
 	assert chisq_diffusion < chisq_nodiffusion
 
-
-def test_imgfitter_hyperfit():
-
-	# img
-	pixsize_img = 0.13
-	fn_img = dir_verif+'science_img.fits'
-	nx, ny = 64, 64
-
-	# psf
-	xstar, ystar = 512, 511
-	camera = 'wfc3_ir'
-	filter = 'f160w'
-	spectrum_form = 'stellar'
-	spectrum_type = 'k7v'
-	diameter = 6
-	focus = -0.5
-	subsample = 5
-	fn_psf = 'j1652_wfc3_star1'
-
-	tpsf = tinypsf(camera=camera, filter=filter, position=[xstar, ystar], spectrum_form=spectrum_form, spectrum_type=spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn=fn_psf, dir_out=dir_testing)
-
-	f = imgfitter(filename=fn_img, pixsize=pixsize_img, nx=nx, ny=ny)
-	f.set_model(tinypsf=tpsf)
-
-	# normal fit
-	f.fit(x=xstar, y=ystar)
-	chisq_normal = f.result.chisq
-	focus_normal = f.hypermodel_init.focus
-
-	# hyper fit
-	f.hyperfit(x=xstar, y=ystar, hyperparams=['focus'])
-	chisq_hyper = f.result.chisq
-	focus_hyper = f.result.hyperparams.focus
-
-	assert chisq_hyper < chisq_normal
-	assert focus_normal != focus_hyper
-
-	f.img_crop_residual.writeto(dir_testing+'residual.fits')
 
 
 def test_imgfitter_result():
@@ -206,14 +267,56 @@ def test_imgfitter_result():
 	assert f.result.hyperparams.focus == 0.9
 	assert f.result.ishyper is True
 
-	f.result._set_from_OptimizeResult(r, mode='params', names=['dx', 'dy', 'scale'])
+	f.result._set_params_from_OptimizeResult(r, names=['dx', 'dy', 'scale'])
 	assert f.result.params.dx == 1
 	assert f.result.success == r.success
 	assert f.result.chisq == r.fun
 	assert f.result.ishyper is True
 
-	f.result._set_from_OptimizeResult(rh, mode='hyperparams', names=['focus'])
+	f.result._set_hyperparams_from_OptimizeResult(rh, names=['focus'])
 	assert f.result.hyperparams.focus == 0.5
 	assert f.result.hyperparams._asdict()['focus'] == 0.5
 	assert f.result.chisq == rh.fun
 	assert f.result.ishyper is True
+
+
+
+def test_imgfitter_save_result():
+
+	xstar, ystar = 512, 511
+	nx, ny = 64, 64
+
+	fn = dir_verif+'science_img.fits'
+	fn_model = dir_verif+'j1652_wfc3_sub5.fits'
+
+	f = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny, )
+	f.set_model(filename=fn_model)
+
+	# no gaussian smoothing
+	status = f.fit(x=xstar, y=ystar)
+	assert status
+	chisq = f.result.chisq
+	params = f.result.params
+	hyperparams = f.result.hyperparams
+
+	fn_result = dir_testing+'result.json'
+	f.result.save(fn_result)
+
+	assert os.path.isfile(fn_result)
+
+	with open(fn_result, 'r') as file:
+		res = json.load(file)
+
+	assert res['params']['dx'] != 0.
+	assert res['hyperparams']  == {}
+	assert res['chisq'] > 0.
+	assert res['success'] == True
+
+
+	f2 = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny, )
+	assert f2.result.chisq is None
+	f2.result.load(fn_result)
+	assert f2.result.chisq == chisq
+
+	assert dict(f2.result.params._asdict()) == dict(params._asdict())
+	assert dict(f2.result.hyperparams._asdict()) == (hyperparams._asdict())

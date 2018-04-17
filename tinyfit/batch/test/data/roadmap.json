@@ -1,0 +1,276 @@
+[
+	{
+		"name": "SDSSJ0832+1615",
+		"ra": 128.000833,
+		"dec": 16.250111, 
+		"reference": "zakamska",
+		"sources": { 
+			"qso":{
+				"ra": 128.000833,
+				"dec": 16.250111,
+				"spectrum_form": "powerlaw_nu",
+				"spectrum_type": -1.33441542369
+			}, 
+			"star0":{
+				"ra": 128.01769053,
+				"dec": 16.24563831,
+				"spectrum_form": "stellar",
+				"spectrum_type": "g8v"
+			}, 
+			"star1":{
+				"ra": 128.006137678,
+				"dec": 16.253634905,
+				"spectrum_form": "stellar",
+				"spectrum_type": "k4v"
+			} 
+		},
+		"observations": [ 
+			{
+				"name": "obs0",
+				"camera": "wfc3",
+				"filter": "f140w",
+				"drzs": [ 
+					{
+						"name": "drz0",
+						"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/zakamska/original/SDSSJ0832+1615/wfc3/id9ya2010_drz.fits",
+						"flts": [ 
+							{
+								"name": "flt0", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/zakamska/original/SDSSJ0832+1615/wfc3/id9ya2lnq_flt.fits", 
+								"sources": { 
+									"qso":{
+										"ra": 128.000833,
+										"dec": 16.250111,
+										"x": 556,
+										"y": 556
+									},  
+									"star0":{
+										"ra": 128.01769053,
+										"dec": 16.24563831,
+										"x": 282,
+										"y": 163
+									},  
+									"star1":{
+										"ra": 128.006137678,
+										"dec": 16.253634905,
+										"x": 392,
+										"y": 550
+									}  
+								}
+	 						}, 
+							{
+								"name": "flt1", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/zakamska/original/SDSSJ0832+1615/wfc3/id9ya2loq_flt.fits", 
+								"sources": { 
+									"qso":{
+										"ra": 128.000833,
+										"dec": 16.250111,
+										"x": 560,
+										"y": 558
+									},  
+									"star0":{
+										"ra": 128.01769053,
+										"dec": 16.24563831,
+										"x": 286,
+										"y": 164
+									},  
+									"star1":{
+										"ra": 128.006137678,
+										"dec": 16.253634905,
+										"x": 396,
+										"y": 552
+									}  
+								}
+	 						}, 
+							{
+								"name": "flt2", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/zakamska/original/SDSSJ0832+1615/wfc3/id9ya2lqq_flt.fits", 
+								"sources": { 
+									"qso":{
+										"ra": 128.000833,
+										"dec": 16.250111,
+										"x": 559,
+										"y": 560
+									},  
+									"star0":{
+										"ra": 128.01769053,
+										"dec": 16.24563831,
+										"x": 285,
+										"y": 167
+									},  
+									"star1":{
+										"ra": 128.006137678,
+										"dec": 16.253634905,
+										"x": 394,
+										"y": 554
+									}  
+								}
+	 						}, 
+							{
+								"name": "flt3", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/zakamska/original/SDSSJ0832+1615/wfc3/id9ya2lsq_flt.fits", 
+								"sources": { 
+									"qso":{
+										"ra": 128.000833,
+										"dec": 16.250111,
+										"x": 555,
+										"y": 559
+									},  
+									"star0":{
+										"ra": 128.01769053,
+										"dec": 16.24563831,
+										"x": 281,
+										"y": 165
+									},  
+									"star1":{
+										"ra": 128.006137678,
+										"dec": 16.253634905,
+										"x": 390,
+										"y": 553
+									}  
+								}
+	 						} 
+						]
+					} 
+				]
+			} 
+		]
+	}, 
+	{
+		"name": "SDSSJ0834+0159",
+		"ra": 128.702,
+		"dec": 1.989194, 
+		"reference": "zakamska",
+		"sources": { 
+			"qso":{
+				"ra": 128.702,
+				"dec": 1.989194,
+				"spectrum_form": "powerlaw_nu",
+				"spectrum_type": 0.00595718020278
+			}, 
+			"star0":{
+				"ra": 128.693677082,
+				"dec": 2.002407739,
+				"spectrum_form": "stellar",
+				"spectrum_type": "g5v"
+			}, 
+			"star1":{
+				"ra": 128.696466032,
+				"dec": 1.987693957,
+				"spectrum_form": "stellar",
+				"spectrum_type": "k4v"
+			} 
+		},
+		"observations": [ 
+			{
+				"name": "obs0",
+				"camera": "wfc3",
+				"filter": "f160w",
+				"drzs": [ 
+					{
+						"name": "drz0",
+						"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/zakamska/original/SDSSJ0834+0159/wfc3/id9ya3010_drz.fits",
+						"flts": [ 
+							{
+								"name": "flt0", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/zakamska/original/SDSSJ0834+0159/wfc3/id9ya3v6q_flt.fits", 
+								"sources": { 
+									"qso":{
+										"ra": 128.702,
+										"dec": 1.989194,
+										"x": 556,
+										"y": 556
+									},  
+									"star0":{
+										"ra": 128.693677082,
+										"dec": 2.002407739,
+										"x": 218,
+										"y": 827
+									},  
+									"star1":{
+										"ra": 128.696466032,
+										"dec": 1.987693957,
+										"x": 604,
+										"y": 718
+									}  
+								}
+	 						}, 
+							{
+								"name": "flt1", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/zakamska/original/SDSSJ0834+0159/wfc3/id9ya3v7q_flt.fits", 
+								"sources": { 
+									"qso":{
+										"ra": 128.702,
+										"dec": 1.989194,
+										"x": 560,
+										"y": 558
+									},  
+									"star0":{
+										"ra": 128.693677082,
+										"dec": 2.002407739,
+										"x": 222,
+										"y": 828
+									},  
+									"star1":{
+										"ra": 128.696466032,
+										"dec": 1.987693957,
+										"x": 608,
+										"y": 719
+									}  
+								}
+	 						}, 
+							{
+								"name": "flt2", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/zakamska/original/SDSSJ0834+0159/wfc3/id9ya3v9q_flt.fits", 
+								"sources": { 
+									"qso":{
+										"ra": 128.702,
+										"dec": 1.989194,
+										"x": 559,
+										"y": 560
+									},  
+									"star0":{
+										"ra": 128.693677082,
+										"dec": 2.002407739,
+										"x": 220,
+										"y": 831
+									},  
+									"star1":{
+										"ra": 128.696466032,
+										"dec": 1.987693957,
+										"x": 607,
+										"y": 722
+									}  
+								}
+	 						}, 
+							{
+								"name": "flt3", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/zakamska/original/SDSSJ0834+0159/wfc3/id9ya3vbq_flt.fits", 
+								"sources": { 
+									"qso":{
+										"ra": 128.702,
+										"dec": 1.989194,
+										"x": 555,
+										"y": 559
+									},  
+									"star0":{
+										"ra": 128.693677082,
+										"dec": 2.002407739,
+										"x": 216,
+										"y": 829
+									},  
+									"star1":{
+										"ra": 128.696466032,
+										"dec": 1.987693957,
+										"x": 603,
+										"y": 720
+									}  
+								}
+	 						} 
+						]
+					} 
+				]
+			} 
+		]
+	}
+]

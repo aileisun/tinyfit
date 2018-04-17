@@ -75,6 +75,24 @@ def test_tinypsf_make_psf():
 	assert 'PIXSCALE' in t.psf.header
 
 
+
+def test_tinypsf_make_psf_powerlaw_nu():
+
+	fn = 'j1652_wfc3_powerlaw_nu'
+	t = tinypsf(dir_out=dir_testing, fn=fn, camera=camera, filter=filter, position=position, spectrum_form='powerlaw_nu', spectrum_type=1.5, diameter=diameter, focus=focus, subsample=subsample)
+	status = t.make_psf()
+	assert status
+
+	# check that the file exist
+	assert os.path.isfile(t.fp_psf)
+
+	# check that the output is the same
+	fn_verif = 'data/j1652_wfc3_powerlaw_nu00.fits'
+	fn_testing = t.fp_psf
+	assert np.all(fits.getdata(fn_testing) == fits.getdata(fn_verif))
+
+
+
 def test_tinypsf_make_psf_subsample5():
 
 	t = tinypsf(dir_out=dir_testing, fn=fn, camera=camera, filter=filter, position=position, spectrum_form=spectrum_form, spectrum_type=spectrum_type, diameter=diameter, focus=focus, subsample=5)
