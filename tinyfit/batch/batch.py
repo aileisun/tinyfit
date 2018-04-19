@@ -45,10 +45,10 @@ class Batch(object):
 		""" create directory tree that contains directories for each target, observation, drz, flt and source of flt. copy drz and flt fits files to corresponding directories. 
 
 		"""
-		for target in self.targets:
-			if not os.path.isdir(target.directory):
-				os.mkdir(target.directory)
-			for obs in target.observations:
+		for tar in self.targets:
+			if not os.path.isdir(tar.directory):
+				os.mkdir(tar.directory)
+			for obs in tar.observations:
 				if not os.path.isdir(obs.directory):
 					os.mkdir(obs.directory)
 				for drz in obs.drzs:
@@ -60,6 +60,33 @@ class Batch(object):
 							os.mkdir(flt.directory)
 						flt.copyfile()
 
+
+	def iterdrz(self, func, **kwargs):
+		""" call func with arguments drz, obs, tar iteratively for each of the drz 
+
+		Args:
+			func (function): with arguments drz, obs, tar. 
+			**kwargs : additional arguments to pass to func
+		"""
+		for tar in self.targets:
+			for obs in tar.observations:
+				for drz in obs.drzs:
+					func(drz=drz, obs=obs, tar=tar, **kwargs)
+
+
+
+	def iterflt(self, func, **kwargs):
+		""" call func with arguments flt, drz, obs, tar iteratively for each of the flt 
+
+		Args:
+			func (function): with arguments flt, drz, obs, tar. 
+			**kwargs : additional arguments to pass to func
+		"""
+		for tar in self.targets:
+			for obs in tar.observations:
+				for drz in obs.drzs:
+					for flt in drz.flts:
+						func(flt=flt, drz=drz, obs=obs, tar=tar, **kwargs)
 
 	def write_roadmap(self, fp=None):
 		""" write roadmap representing the Batch as json to file. 

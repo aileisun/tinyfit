@@ -2,6 +2,7 @@ import pytest
 import os
 import shutil
 import json
+import numpy as np
 
 from .. import batch
 from ..batch import Batch
@@ -39,8 +40,10 @@ def test_batch_init():
 
 	assert b.targets[0].observations[0].drzs[0].flts[0].sources['qso'].name == 'qso'
 	assert b.targets[0].observations[0].drzs[0].flts[0].sources['qso'].x == 556
-	assert b.targets[0].observations[0].drzs[0].flts[0].sources['qso'].spectrum_type == -1.33441542369
+	stype = -1.3344154236922656
+	assert np.absolute(b.targets[0].observations[0].drzs[0].flts[0].sources['qso'].spectrum_type - stype)/stype < 1.e-3
 	assert len(b.targets[0].sources) == len(b.targets[0].observations[0].drzs[0].flts[0].sources)
+
 
 def test_batch_write_roadmap():
 	"""
@@ -70,6 +73,39 @@ def test_batch_build():
 	assert os.path.isfile(b.directory+'SDSSJ0832+1615/obs0/drz0/flt0/flt.fits')
 
 
+class Count():
+	def __init__(self):
+		self.count = 0
+
+
+def test_batch_iterdrz():
+	b = Batch(dir_data+'roadmap_lite.json', directory=dir_testing)
+	b.build()
+	c = Count()
+
+	def iterfunc(drz, obs, tar, c):
+		c.count += 1
+
+	b.iterdrz(iterfunc, c=c)
+	assert c.count == 4
+
+
+def test_batch_iterflt():
+	b = Batch(dir_data+'roadmap_lite.json', directory=dir_testing)
+	b.build()
+	c = Count()
+
+	def iterfunc(flt, drz, obs, tar, c):
+		c.count += 1
+
+	b.iterflt(iterfunc, c=c)
+	assert c.count == 24
+
+
+def test_batch_multiprocessing():
+	assert False
+
+
 def test_batch_make_roadmap():
 	"""
 	make roadmap from tables. 
@@ -81,14 +117,17 @@ def test_batch_make_roadmap():
 						fp_tab_observations=[dir_tab+'obs0.csv', dir_tab+'obs1.csv'],
 						fp_tab_sources=[dir_tab+'source_qso.csv',dir_tab+'source_star0.csv',dir_tab+'source_star1.csv',],
 						source_names=['qso', 'star0', 'star1'],
-						dir_data='/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/',
-						dir_local=dir_testing
-						)
+						dir_data='/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/')
 
 	assert status
 	assert os.path.isfile(fp_roadmap)
 	with open(fp_roadmap, 'r') as f:
 		r = json.load(f)
 
+	assert len(r[0]["sources"]) == 3
 	assert r[0]["observations"][0]["drzs"][0]["flts"][0]["sources"]["qso"]["x"] == 556
 	assert r[0]["observations"][0]["drzs"][0]["flts"][0]["sources"]["qso"]["spectrum_form"] == "powerlaw_nu"
+
+	# drz and flt should have different qso x, y location
+	assert r[0]["observations"][0]["drzs"][0]["flts"][0]["sources"]["qso"]["x"] != r[0]["observations"][0]["drzs"][0]["sources"]["qso"]["x"]
+

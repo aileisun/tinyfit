@@ -39,7 +39,8 @@ def make_roadmap(fp_tab_target, fp_tab_observations, fp_tab_sources, source_name
 		fp='roadmap.json' (str, optional): path to output json file. 
 		key='obj_name' (str): column name of the key column. 
 		dir_data='./' (str): directory where fits files are taken from. 
-		dir_local='./' (str): directory where new local data tree will be built. 
+		dir_local='./' (str): 
+			dummy directory for parent dir of targets that will not affect the result. 
 
 	Return:
 		(bool): True if succes
@@ -94,6 +95,7 @@ def make_roadmap(fp_tab_target, fp_tab_observations, fp_tab_sources, source_name
 			observation.drzs = drzs
 			observations = observations+[observation]
 		target.observations = observations
+		target.sources = sources
 		targets = targets +[target]
 
 	render_roadmap(fp, targets)
@@ -175,7 +177,7 @@ class Target(object):
 			self.ra = roadmap.pop('ra', None)
 			self.dec = roadmap.pop('dec', None)
 			self.reference = roadmap.pop('reference', None)
-			self.sources = get_dict_Sources_from_roadmap(roadmap=roadmap.pop('sources', []))
+			self.sources = get_dict_Sources_from_roadmap(roadmap=roadmap.pop('sources', []), dir_parent=self.directory)
 			self.observations = [Observation(dir_parent=self.directory, roadmap=r) for r in roadmap.pop('observations', [])]
 		else: 
 			self.name = kwargs.pop('name', None)
@@ -283,9 +285,9 @@ class DRZ(object):
 			# unzip fp
 			if not os.path.isfile(self.fp):
 				unzip_gz(self.fp+'.gz', self.fp)
-			self.wcs = wcs.WCS(fits.getheader(self.fp, ext=1))
+			self.wcs = wcs.WCS(fits.getheader(self.fp, ext=1), fits.open(self.fp))
 			self.flts = [FLT(dir_parent=self.directory, roadmap=r) for r in roadmap.pop('flts', [])]
-			self.sources = get_dict_FITSources_from_roadmap(roadmap=roadmap.pop('sources', {}), wcs=self.wcs)
+			self.sources = get_dict_FITSources_from_roadmap(roadmap=roadmap.pop('sources', {}), wcs=self.wcs, dir_parent=self.directory)
 
 		else: 
 			self.name = kwargs.pop('name', None)
@@ -294,7 +296,7 @@ class DRZ(object):
 			# unzip fp
 			if not os.path.isfile(self.fp):
 				unzip_gz(self.fp+'.gz', self.fp)
-			self.wcs = wcs.WCS(fits.getheader(self.fp, ext=1))
+			self.wcs = wcs.WCS(fits.getheader(self.fp, ext=1), fits.open(self.fp))
 			self.flts = kwargs.pop('flts', [])
 			sources = kwargs.pop('sources', {})
 			self.set_fitsources(sources)
@@ -314,7 +316,7 @@ class DRZ(object):
 		aux_attr = list(next(iter(sources.values())).__dict__.keys())
 		[aux_attr.remove(key) for key in ['name', 'ra', 'dec']]
 
-		self.sources = {name: FITSource(name=name, ra=source.ra, dec=source.dec, wcs=self.wcs, **{a: getattr(source, a) for a in aux_attr}) for name, source in sources.items()}
+		self.sources = {name: FITSource(name=name, ra=source.ra, dec=source.dec, dir_parent=self.directory, wcs=self.wcs, **{a: getattr(source, a) for a in aux_attr}) for name, source in sources.items()}
 
 		for flt in self.flts:
 			flt.set_fitsources(sources)
@@ -387,8 +389,8 @@ class FLT(object):
 			# unzip fp
 			if not os.path.isfile(self.fp):
 				unzip_gz(self.fp+'.gz', self.fp)
-			self.wcs = wcs.WCS(fits.getheader(self.fp, ext=1))
-			self.sources = get_dict_FITSources_from_roadmap(roadmap=roadmap.pop('sources', {}), wcs=self.wcs)
+			self.wcs = wcs.WCS(fits.getheader(self.fp, ext=1), fits.open(self.fp))
+			self.sources = get_dict_FITSources_from_roadmap(roadmap=roadmap.pop('sources', {}), wcs=self.wcs, dir_parent=self.directory)
 		else: 
 			self.name = kwargs.pop('name', None)
 			self.directory = dir_parent+self.name+'/'
@@ -402,6 +404,23 @@ class FLT(object):
 			# self.sources = {name: FITSource(name=name, ra=source.ra, dec=source.dec, wcs=self.wcs, ) for name, source in sources.items()}
 
 		self.fp_local = self.directory+'flt.fits'
+		self.fp_skysub = self.directory+'flt_skysub.fits'
+
+
+	def make_flt_skysub(self):
+		"""produce skysubtracted flt file 'flt_skysub.fits'. constant sky of value 'MDRIZSKY' in header is taken out. 
+		"""
+		hdus = fits.open(self.fp_local)
+
+		midrizsky = hdus[1].header['MDRIZSKY']
+		data = hdus[1].data
+		data_skysub = data - midrizsky
+
+		hdus[1].data = data_skysub
+		hdus[1].header['MDRIZSKY'] = 0.
+		hdus[1].header['HISTORY'] = 'Constant sky of level {} is subtracted'.format(str(midrizsky))
+
+		hdus.writeto(self.fp_skysub, overwrite=True)
 
 
 	def set_fitsources(self, sources):
@@ -411,7 +430,7 @@ class FLT(object):
 		aux_attr = list(next(iter(sources.values())).__dict__.keys())
 		[aux_attr.remove(key) for key in ['name', 'ra', 'dec']]
 
-		self.sources = {name: FITSource(name=name, ra=source.ra, dec=source.dec, wcs=self.wcs, **{a: getattr(source, a) for a in aux_attr}) for name, source in sources.items()}
+		self.sources = {name: FITSource(name=name, ra=source.ra, dec=source.dec, dir_parent=self.directory, wcs=self.wcs, **{a: getattr(source, a) for a in aux_attr}) for name, source in sources.items()}
 
 
 	def copyfile(self):
@@ -432,6 +451,7 @@ class Source(object):
 		# directory (str): path to the working directory
 		ra (float): ra
 		dec (float): dec
+		dir_parent='./' (str): path to the parent directory
 	"""
 	def __init__(self, **kwargs):
 		""" initializing 
@@ -443,7 +463,7 @@ class Source(object):
 			**kwargs: 'key' 'value' pairs that will be set as attributes. 
 		"""
 		self.name = kwargs.pop('name', None)
-		# self.directory = kwargs.pop('dir_parent', './')+self.name+'/'
+		self.directory = kwargs.pop('dir_parent', './')+self.name+'/'
 		self.ra = kwargs.pop('ra', None)
 		self.dec = kwargs.pop('dec', None)		
 		for key, value in kwargs.items():
@@ -454,7 +474,7 @@ class FITSource(Source):
 	"""a source that has name, ra, dec and corresponding x, y position in the fits file
 
 	Note: 
-		If x, y is not provided as kwargs, x, y is automatically inferred from wcs and ra, dec. 
+		x, y is automatically inferred from wcs and ra, dec and if x, y were input as arguments it will be overwritten. 
 
 	Attributes:
 		name (str): name of the source. 
@@ -479,13 +499,12 @@ class FITSource(Source):
 		super(self.__class__, self).__init__(**kwargs)
 
 		# set origin to 0 to comply with numpy convention
-		if (not hasattr(self, 'x')) | (not hasattr(self, 'y')):
-			x, y = np.round(wcs.wcs_world2pix(np.array([[self.ra, self.dec]]), 0)[0])
-			self.x, self.y = int(x), int(y)
+		x, y = np.round(wcs.wcs_world2pix(np.array([[self.ra, self.dec]]), 0)[0])
+		self.x, self.y = int(x), int(y)
 
 
 
-def get_dict_FITSources_from_roadmap(roadmap, wcs):
+def get_dict_FITSources_from_roadmap(roadmap, wcs, **kwargs):
 	"""
 	translate roadmap of sources to dictionary of Source objects. 
 
@@ -506,14 +525,15 @@ def get_dict_FITSources_from_roadmap(roadmap, wcs):
 				}, 
 			}
 		wcs (:obj: 'astropy.wcs.WCS')
+		** kwargs: additional arguments for FITSource
 
 	Return: 
 		{dict of :obj: 'FITSource'}
 	"""
-	return {name: FITSource(wcs=wcs, name=name, **value) for name, value in roadmap.items()}
+	return {name: FITSource(wcs=wcs, name=name, **value, **kwargs) for name, value in roadmap.items()}
 
 
-def get_dict_Sources_from_roadmap(roadmap):
+def get_dict_Sources_from_roadmap(roadmap, **kwargs):
 	"""
 	translate roadmap of sources to dictionary of Source objects. 
 
@@ -533,11 +553,12 @@ def get_dict_Sources_from_roadmap(roadmap):
 					"spectrum_type": "g8v"
 				}, 
 			}
+		** kwargs: additional arguments for FITSource
 
 	Return: 
 		{dict of :obj: 'Source'}
 	"""
-	return {name: Source(name=name, **value) for name, value in roadmap.items()}
+	return {name: Source(name=name, **value, **kwargs) for name, value in roadmap.items()}
 
 
 def unzip_gz(fp_in, fp_out):
