@@ -33,6 +33,8 @@
 					{
 						"name": "drz0",
 						"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/zakamska/original/SDSSJ0832+1615/wfc3/id9ya2010_drz.fits",
+						"sources": {
+						},
 						"flts": [ 
 							{
 								"name": "flt0", 
@@ -170,6 +172,8 @@
 					{
 						"name": "drz0",
 						"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/zakamska/original/SDSSJ0834+0159/wfc3/id9ya3010_drz.fits",
+						"sources": {
+						},
 						"flts": [ 
 							{
 								"name": "flt0", 

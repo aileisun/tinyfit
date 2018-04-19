@@ -1,0 +1,55 @@
+[{% for target in targets %}
+	{
+		"name": {{ target.name|quote }},
+		"ra": {{ target.ra }},
+		"dec": {{ target.dec }}, 
+		"reference": {{ target.reference|quote }},
+		"sources": { {% for name, source in target.sources.items() %}
+			{{ name|quote }}:{
+				"ra": {{ source.ra }},
+				"dec": {{ source.dec }},
+				"spectrum_form": {{ source.spectrum_form|quote }},
+				"spectrum_type": {{ source.spectrum_type|quote }}
+			}{% if not loop.last %},{% endif %} {% endfor %}
+		},
+		"observations": [ {% for observation in target.observations %}
+			{
+				"name": {{observation.name|quote}},
+				"camera": {{observation.camera|quote}},
+				"filter": {{ observation.filter|quote }},
+				"drzs": [ {% for drz in observation.drzs %}
+					{
+						"name": {{ drz.name|quote }},
+						"fp": {{ drz.fp|quote }},
+						"flts": [ {% for flt in drz.flts %}
+							{
+								"name": {{ flt.name|quote }}, 
+								"fp": {{ flt.fp|quote }}, 
+								"sources": { {% for name, source in flt.sources.items() %}
+									{{ name|quote }}:{
+										"ra": {{ source.ra }},
+										"dec": {{ source.dec }},
+										"spectrum_form": {{ source.spectrum_form|quote }},
+										"spectrum_type": {{ source.spectrum_type|quote }},
+										"x": {{ source.x }},
+										"y": {{ source.y }}
+									}{% if not loop.last %},{% endif %}  {% endfor %}
+								}
+	 						}{% if not loop.last %},{% endif %} {% endfor %}
+						],
+						"sources": { {% for name, source in drz.sources.items() %}
+							{{ name|quote }}:{
+								"ra": {{ source.ra }},
+								"dec": {{ source.dec }},
+								"spectrum_form": {{ source.spectrum_form|quote }},
+								"spectrum_type": {{ source.spectrum_type|quote }},
+								"x": {{ source.x }},
+								"y": {{ source.y }}
+							}{% if not loop.last %},{% endif %}  {% endfor %}
+						}
+					}{% if not loop.last %},{% endif %} {% endfor %}
+				]
+			}{% if not loop.last %},{% endif %} {% endfor %}
+		]
+	}{% if not loop.last %},{% endif %} {% endfor %}
+]
