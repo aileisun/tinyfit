@@ -6,6 +6,7 @@ import os
 import numpy as np
 from astropy.io import fits
 from astropy.io import ascii
+import json
 
 from . import call_tinytim
 from ..imgobj import imgobj
@@ -82,13 +83,27 @@ class tinypsf(object):
 		self.subsample = subsample
 
 		# filename
-		self.set_filename(dir_out=dir_out, fn=fn, )
+		self._set_filename(dir_out=dir_out, fn=fn, )
 
 		# the environmental varaible to attribute 
 		self.dir_tinytim = os.environ['TINYTIM']+'/'
 
 
-	def set_filename(self, dir_out='./', fn='psf_temporary', ):
+	def write_params(self, fn='tiny_params.json'): 
+		""" write the current setting to json file
+
+		Args: 
+			fn='tiny_params.json' (str): file to save to.  
+		"""
+		keys = ['fn', 'camera', 'detector', 'filter', 'position', 'spectrum_form', 'spectrum_type', 'diameter', 'focus', 'subsample']
+
+		params = {key: getattr(self, key) for key in keys}
+
+		with open(fn, 'w') as f:
+			json.dump(params, f, indent='\t')
+
+
+	def _set_filename(self, dir_out='./', fn='psf_temporary', ):
 		self.dir_out = dir_out
 		self.fn = os.path.splitext(fn)[0]
 		self.rootname = self.dir_out+self.fn
@@ -143,7 +158,7 @@ class tinypsf(object):
 		status = (status_tiny & status_final)
 
 		if status: 
-			self.load_psf()
+			self._load_psf()
 		return status
 
 
@@ -162,7 +177,7 @@ class tinypsf(object):
 		return fits.getdata(self.fp_psf)
 
 
-	def load_psf(self):
+	def _load_psf(self):
 		"""Load psf and its meta data from file to create object self.psf, which is an imgobj object that contains: 
 
 		self.psf.data

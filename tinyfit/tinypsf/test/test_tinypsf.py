@@ -3,6 +3,7 @@ import os
 import numpy as np
 import shutil
 from astropy.io import fits
+import json
 
 from ..tinypsf import tinypsf
 
@@ -45,6 +46,28 @@ def test_tinypsf_init():
 	assert type(t) is tinypsf
 
 
+def test_tinypsf_write_params():
+
+	t = tinypsf(dir_out=dir_testing, fn=fn, camera=camera, filter=filter, position=position, spectrum_form=spectrum_form, spectrum_type=spectrum_type, diameter=diameter, focus=focus, subsample=subsample)
+
+	fn_param = dir_testing+'tiny_params.json'
+	t.write_params(fn=fn_param)
+
+	assert os.path.isfile(fn_param)
+	with open(fn_param, 'r') as f:
+		params = json.load(f)
+
+	assert params['fn'] == fn
+	assert params['camera'] == camera
+	assert params['filter'] == filter
+	assert params['position'] == position
+	assert params['spectrum_form'] == spectrum_form
+	assert params['spectrum_type'] == spectrum_type
+	assert params['diameter'] == diameter
+	assert params['focus'] == focus
+	assert params['subsample'] == subsample
+
+
 def test_tinypsf_make_psf():
 
 	t = tinypsf(dir_out=dir_testing, fn=fn, camera=camera, filter=filter, position=position, spectrum_form=spectrum_form, spectrum_type=spectrum_type, diameter=diameter, focus=focus, subsample=subsample)
@@ -65,7 +88,7 @@ def test_tinypsf_make_psf():
 	assert t.fp_psf == dir_testing+fn+'.fits'
 
 	# check that psf meta data is loaded properly
-	status = t.load_psf()
+	status = t._load_psf()
 	assert status
 	assert type(t.psf.data) is np.ndarray
 	assert t.psf.subsample == 1
@@ -113,7 +136,7 @@ def test_tinypsf_make_psf_subsample5():
 	assert t.fp_psf == dir_testing+fn+'.fits'
 
 	# check that psf meta data is loaded properly
-	status = t.load_psf()
+	status = t._load_psf()
 	assert status
 	assert type(t.psf.data) is np.ndarray
 	assert t.psf.subsample == 5
