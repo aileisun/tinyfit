@@ -44,6 +44,21 @@ def test_visual_biplot():
 
 	v = visual.visual(fn=dir_data+'drz_crop.fits')
 
-	fn_out = dir_testing+'drz_crop_biplot.pdf'
+	fn_out = dir_testing+'drz_crop_biplot_linear.pdf'
 	v.biplot(fn=dir_data+'drz_psfsub_crop.fits', stretch='linear', cmap=plt.cm.jet, fn_out=fn_out, colorbar=True)
 	assert os.path.isfile(fn_out)
+
+
+	fn_out = dir_testing+'drz_crop_biplot_log.pdf'
+	v.biplot(fn=dir_data+'drz_psfsub_crop.fits', stretch='log', cmap=plt.cm.jet, fn_out=fn_out, colorbar=True)
+	assert os.path.isfile(fn_out)
+
+
+def test_visual_ratioplot():
+
+	v = visual.visual(fn=dir_data+'drz_crop.fits')
+
+	fn_out = dir_testing+'drz_crop_ratioplot_linear.pdf'
+	v.ratioplot(fn=dir_data+'drz_psfsub_crop.fits', stretch='linear', cmap=plt.cm.jet, fn_out=fn_out, colorbar=True)
+	assert os.path.isfile(fn_out)
+
