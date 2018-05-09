@@ -115,6 +115,7 @@ def render_roadmap(fp, targets):
 	with open(fp, 'w') as file:
 		file.write(targets_json)
 
+
 def getlocalpath():
 	"""
 	return path to filter direcotry

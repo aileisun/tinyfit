@@ -54,7 +54,6 @@ class visual(object):
 		ax.get_yaxis().set_visible(False)
 		plt.tight_layout()
 		plt.savefig(fn_out)
-		plt.close()
 
 
 
@@ -99,7 +98,6 @@ class visual(object):
 
 		plt.tight_layout()
 		plt.savefig(fn_out)
-		plt.close()
 
 
 
@@ -159,7 +157,6 @@ class visual(object):
 
 		plt.tight_layout()
 		plt.savefig(fn_out)
-		plt.close()
 
 
 def get_norm(stretch='log', vmin=None, vmax=None):

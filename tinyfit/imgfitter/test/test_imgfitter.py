@@ -119,7 +119,6 @@ def test_imgfitter_fit():
 	assert f.img_bestfit.data.shape == fits.getdata(fn).shape
 
 
-
 def test_imgfitter_fit_gaussiansmoothing():
 
 	xstar, ystar = 512, 511
@@ -212,8 +211,8 @@ def test_imgfitter_charge_diffusion():
 	fn = dir_verif+'science_img.fits'
 	fn_psf = 'j1652_wfc3_sub5'
 
-	t = tinypsf(dir_out=dir_verif, fn=fn_psf, subsample=5)
-	t.load_psf()
+	t = tinypsf(dir_out=dir_testing, fn=fn_psf, subsample=5)
+	# t.load_psf()
 
 	f = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny, charge_diffusion=True)
 	f.set_model(tinypsf=t)
@@ -320,3 +319,129 @@ def test_imgfitter_save_result():
 
 	assert dict(f2.result.params._asdict()) == dict(params._asdict())
 	assert dict(f2.result.hyperparams._asdict()) == (hyperparams._asdict())
+
+
+
+def test_imgfitter_fit_model_maxlim():
+	""" limit the max of the model to be smaller than, say, the maximum of the data image. 
+	"""
+
+	xstar, ystar = 512, 511
+	nx, ny = 64, 64
+
+	fn = dir_verif+'science_img.fits'
+	fn_model = dir_verif+'j1652_wfc3_sub5.fits'
+
+	f = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny, )
+	f.set_model(filename=fn_model)
+
+	freeparams = ['dx', 'dy', 'scale', 'sigma']
+	status = f.fit(x=xstar, y=ystar, freeparams=freeparams)
+	assert status
+	model_max = f.img_crop_bestfit.data.max()
+	data_max = f.img_crop.data.max()
+
+	f.img_crop.writeto(dir_testing+'img.fits')
+	f.img_crop_residual.writeto(dir_testing+'residual.fits')
+	f.img_bestfit.writeto(dir_testing+'img_bestfit.fits')
+	f.result.save(dir_testing+'result.json')
+
+	# with model_maxlim
+	freeparams = ['dx', 'dy', 'scale', 'sigma']
+	status = f.fit(x=xstar, y=ystar, freeparams=freeparams, model_maxlim='data')
+	assert status
+
+	assert f.img_crop_bestfit.data.max() < model_max
+	assert f.img_crop_bestfit.data.max() <= data_max
+
+	f.img_crop_residual.writeto(dir_testing+'residual_maxlim.fits')
+	f.img_bestfit.writeto(dir_testing+'img_bestfit_maxlim.fits')
+	f.result.save(dir_testing+'result_maxlim.json')
+
+	# hyper
+	xstar, ystar = 512, 511
+	camera = 'wfc3_ir'
+	filter = 'f160w'
+	spectrum_form = 'stellar'
+	spectrum_type = 'k7v'
+	diameter = 6
+	focus = -0.5
+	subsample = 5
+	fn_psf = 'j1652_wfc3_star1'
+
+	tpsf = tinypsf(camera=camera, filter=filter, position=[xstar, ystar], spectrum_form=spectrum_form, spectrum_type=spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn=fn_psf, dir_out=dir_testing)
+
+	f.set_model(tinypsf=tpsf)
+	status = f.hyperfit(x=xstar, y=ystar, freeparams=freeparams, freehyperparams=['focus'], model_maxlim='data')
+	assert status
+
+	assert f.img_crop_bestfit.data.max() < model_max
+	assert f.img_crop_bestfit.data.max() <= data_max
+
+	f.img_crop_residual.writeto(dir_testing+'residual_maxlim_hyper.fits')
+	f.img_bestfit.writeto(dir_testing+'img_bestfit_maxlim_hyper.fits')
+	f.result.save(dir_testing+'result_maxlim_hyper.json')
+
+
+
+def test_imgfitter_fit_neg_weight():
+	""" penalize the negtive residuals by a factor of 'neg_penal' in the chisq calculation. 
+	"""
+
+	xstar, ystar = 512, 511
+	nx, ny = 64, 64
+
+	fn = dir_verif+'science_img.fits'
+	fn_model = dir_verif+'j1652_wfc3_sub5.fits'
+
+	f = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny, )
+	f.set_model(filename=fn_model)
+
+	freeparams = ['dx', 'dy', 'scale', 'sigma']
+	status = f.fit(x=xstar, y=ystar, freeparams=freeparams)
+	assert status
+	model_max = f.img_crop_bestfit.data.max()
+	data_max = f.img_crop.data.max()
+
+	f.img_crop.writeto(dir_testing+'img.fits')
+	f.img_crop_residual.writeto(dir_testing+'residual.fits')
+	f.img_crop_bestfit.writeto(dir_testing+'img_bestfit.fits')
+	f.result.save(dir_testing+'result.json')
+
+	# with neg_penal
+	freeparams = ['dx', 'dy', 'scale', 'sigma']
+	status = f.fit(x=xstar, y=ystar, freeparams=freeparams, neg_penal=3.)
+	assert status
+
+	assert f.img_crop_bestfit.data.max() < model_max
+	assert f.img_crop_bestfit.data.max() <= data_max
+
+	f.img_crop_residual.writeto(dir_testing+'residual_negpenal.fits')
+	f.img_crop_bestfit.writeto(dir_testing+'img_bestfit_negpenal.fits')
+	f.result.save(dir_testing+'result_negpenal.json')
+
+
+	# with hyperfit
+	xstar, ystar = 512, 511
+	camera = 'wfc3_ir'
+	filter = 'f160w'
+	spectrum_form = 'stellar'
+	spectrum_type = 'k7v'
+	diameter = 6
+	focus = -0.5
+	subsample = 5
+	fn_psf = 'j1652_wfc3_star1'
+
+	tpsf = tinypsf(camera=camera, filter=filter, position=[xstar, ystar], spectrum_form=spectrum_form, spectrum_type=spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn=fn_psf, dir_out=dir_testing)
+
+	f.set_model(tinypsf=tpsf)
+
+	status = f.hyperfit(x=xstar, y=ystar, freeparams=freeparams, freehyperparams=['focus'], neg_penal=3.)
+	assert status
+
+	assert f.img_crop_bestfit.data.max() < model_max
+	assert f.img_crop_bestfit.data.max() <= data_max
+
+	f.img_crop_residual.writeto(dir_testing+'residual_negpenal_hyper.fits')
+	f.img_crop_bestfit.writeto(dir_testing+'img_bestfit_negpenal_hyper.fits')
+	f.result.save(dir_testing+'result_negpenal_hyper.json')

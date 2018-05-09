@@ -142,7 +142,7 @@ def _make_model_with_new_hyperparam(params_dict, hypermodel_init):
 			setattr(hypermodel_new, key, params_dict[key])
 
 		fn_new = hypermodel_init.fn+'_hyperfit'
-		hypermodel_new.set_filename(dir_out=hypermodel_init.dir_out, fn=fn_new)
+		hypermodel_new._set_filename(dir_out=hypermodel_init.dir_out, fn=fn_new)
 
 		hypermodel_new.make_psf()
 		return hypermodel_new.psf
@@ -150,6 +150,29 @@ def _make_model_with_new_hyperparam(params_dict, hypermodel_init):
 	else:
 		raise Exception('The type of hypermodel is not implemented. Currently supporting only tinypsf. ')
 		return None
+
+
+def _calc_chisq(imgdata, modeldata, model_maxlim=np.inf, neg_penal=1.):
+	"""
+	calculate the chisq given two arrays -- imgdata and modeldata. model_maxlim is the maximum the model data can take, otherwise it will return inf chisq. neg_penal is a factor that penalizes negative residual. 
+	"""
+
+
+	if model_maxlim == 'data':
+		maxlim = imgdata.max()
+	else: 
+		maxlim = model_maxlim
+
+	if modeldata.max() > maxlim:
+		return np.inf
+	else: 
+		if neg_penal == 1.:
+			return np.sum((imgdata - modeldata)**2)
+		else:
+			diff = imgdata - modeldata
+			diff_pos = diff[diff>=0]
+			diff_neg = diff[diff<0]
+			return np.sum((diff_pos)**2) + neg_penal**2 * np.sum((diff_neg)**2)
 
 
 class imgfitter(object):
@@ -284,7 +307,7 @@ class imgfitter(object):
 			self.model_init = self.hypermodel_init.psf
 
 
-	def fit(self, x, y, freeparams=['dx', 'dy', 'scale'], charge_diffusion=True):
+	def fit(self, x, y, freeparams=['dx', 'dy', 'scale'], charge_diffusion=True, model_maxlim=np.inf, neg_penal=1.):
 		""" Fit the model to the image at the specified location and image size. 
 
 		Example:
@@ -297,6 +320,10 @@ class imgfitter(object):
 				List of free params to fit. Could be subset of ['dx', 'dy', 'scale', 'sigma']. 'dx' 'dy' are for translation; 'scale' is multiplied to pix values; 'sigma' is width of Gaussian smoothing. By default no smoothing is used. 
 			charge_diffusion = True (int): 
 				If true then apply charge diffusion to model if required. 
+			model_maxlim = np.inf (float or str):
+				Limits to the maximum value of the model image. Default: inf. Can be set to a number. If set to 'data', then it's determined from the max of data cropped image 
+			neg_penal = 1. (float):
+				Penalizing factor of the negative residuals in the chisq calculation. If set to larger than 1 then negative residuals are penalized relative to positive residuals. 
 
 		Return:
 	        bool: The return value. True for success, False otherwise.
@@ -317,11 +344,9 @@ class imgfitter(object):
 		self._cropimg(xc=x, yc=y)
 
 		# fitting shift and scale
-		res_xys = self._fitloop_xys(image = self.img_crop, model=self.model_init, freeparams=freeparams)
+		res_xys = self._fitloop_xys(image = self.img_crop, model=self.model_init, freeparams=freeparams, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
 		if res_xys.success:
-			# set result attribute
-			# import pdb; pdb.set_trace()
 
 			self.result._set_params_from_OptimizeResult(res_xys, names=freeparams)
 			self.result._set_hyperparams(params=[], names=[])
@@ -336,7 +361,7 @@ class imgfitter(object):
 			return False
 
 
-	def hyperfit(self, x, y, freeparams=['dx', 'dy', 'scale'], freehyperparams=[], charge_diffusion=True):
+	def hyperfit(self, x, y, freeparams=['dx', 'dy', 'scale'], freehyperparams=[], charge_diffusion=True, model_maxlim=np.inf, neg_penal=1.):
 		""" Fit the hypermodel to the image at the specified location and image size. 
 
 		Example:
@@ -351,6 +376,10 @@ class imgfitter(object):
 				List of strings indicating hyperparameters to fit, e.g., ['focus', ]. 
 			charge_diffusion = True (int): 
 				If true then apply charge diffusion to model if required. 
+			model_maxlim = np.inf (float or str):
+				Limits to the maximum value of the model image. Default: inf. Can be set to a number. If set to 'data', then it's determined from the max of data cropped image 
+			neg_penal = 1. (float):
+				Penalizing factor of the negative residuals in the chisq calculation. If set to larger than 1 then negative residuals are penalized relative to positive residuals. 
 
 		Return:
 	        bool: The return value. True for success, False otherwise.
@@ -370,7 +399,7 @@ class imgfitter(object):
 		# cropping
 		self._cropimg(xc=x, yc=y)
 
-		res_hyper, res_xys = self._fitloop_hyperparam(image=self.img_crop, hypermodel_init=self.hypermodel_init, freeparams=freeparams, freehyperparams=freehyperparams)
+		res_hyper, res_xys = self._fitloop_hyperparam(image=self.img_crop, hypermodel_init=self.hypermodel_init, freeparams=freeparams, freehyperparams=freehyperparams, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
 		if res_hyper.success and res_xys.success:
 			print('hyperfit successful')
@@ -426,7 +455,7 @@ class imgfitter(object):
 		return imgobj(data=residual_data, pixsize=self.img_crop.pixsize)
 
 
-	def _fitloop_xys(self, image, model, freeparams=['dx', 'dy', 'scale']):
+	def _fitloop_xys(self, image, model, freeparams=['dx', 'dy', 'scale'], model_maxlim=np.inf, neg_penal=1.):
 		""" loop for fitting model to image with free params x, y, scale 
 
 		Args:
@@ -434,27 +463,31 @@ class imgfitter(object):
 			model (:obj: imgobj)
 			freeparams=['dx', 'dy', 'scale'] (:obj: 'list' of 'str'): 
 				List of free params to fit. Could be subset of ['dx', 'dy', 'scale', 'sigma']. 'dx' 'dy' are for translation; 'scale' is multiplied to pix values; 'sigma' is width of Gaussian smoothing. By default no smoothing is fitted. 
+			model_maxlim = np.inf (float or str):
+				Limits to the maximum value of the model image. Default: inf. Can be set to a number. If set to 'data', then it's determined from the max of data cropped image 
+			neg_penal = 1. (float):
+				Penalizing factor of the negative residuals in the chisq calculation. If set to larger than 1 then negative residuals are penalized relative to positive residuals. 
 
 		return: 
 			(:obj: scipy minimization result)
 		"""
 
-		def _chisq_xys(p, freeparams, image, model):
-			""" p = (dx, dy, scale) """
+		def _chisq_xys(p, freeparams, image, model, model_maxlim=np.inf, neg_penal=1.):
+			""" calculate chisq. Return inf if model max is larter than model_maxlim. """
 			params_dict = dict(zip(freeparams, p))
 			model_new = self._get_shifted_scaled_smoothed_resampled_model(model, **params_dict)
 			assert model_new.pixsize == image.pixsize
-			c = np.sum((image.data - model_new.data)**2)
-			return c
+
+			return _calc_chisq(imgdata=image.data, modeldata=model_new.data, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
 		# set init
-		init_dictionary = {'dx': 0., 'dy': 0., 
+		init_dictionary = {'dx': 0.1, 'dy': 0.1, 
 							'scale': image.data.max()/model.data.max(), 
 							'sigma': 0.1}
 		p_init = [init_dictionary[freeparam] for freeparam in freeparams]
 
 		# run
-		minresult = so.minimize(_chisq_xys, x0=p_init, args=(freeparams, image, model, ), method='Powell')
+		minresult = so.minimize(_chisq_xys, x0=p_init, args=(freeparams, image, model, model_maxlim, neg_penal), method='Powell')
 
 		if 'sigma' in freeparams:
 			isigma = np.where('sigma' == np.array(freeparams))[0][0]
@@ -464,38 +497,43 @@ class imgfitter(object):
 
 
 
-	def _fitloop_hyperparam(self, image, hypermodel_init, freeparams, freehyperparams):
+	def _fitloop_hyperparam(self, image, hypermodel_init, freeparams, freehyperparams, model_maxlim=np.inf, neg_penal=1.):
 		""" fitting hypermodel to image with free hyperparams
 
 		Args:
 			image (:obj: imgobj)
 			model (:obj: imgobj)
+			hypermodel_init (:obj: tinypsf)
+			freeparams (:obj: 'list' of 'str')
+			freehyperparams (:obj: 'list' of 'str')
+			model_maxlim = np.inf (float or str)
+			neg_penal = 1. (float)
 
 		return: 
 			(:obj: scipy minimization result)
 		"""
 
-		def _chisq_hyper(p, freeparams, freehyperparams, image, hypermodel_init):
+		def _chisq_hyper(p, freeparams, freehyperparams, image, hypermodel_init, model_maxlim=np.inf, neg_penal=1.):
 			""" p = (dx, dy, scale) """
 			hyperparams_dict = dict(zip(freehyperparams, p))
 			model_new = _make_model_with_new_hyperparam(hyperparams_dict, hypermodel_init)
 
-			res_xys = self._fitloop_xys(image, model_new, freeparams=freeparams)
+			res_xys = self._fitloop_xys(image, model_new, freeparams=freeparams, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
 			params_dict = dict(zip(freeparams, res_xys.x))
 			model_xyss = self._get_shifted_scaled_smoothed_resampled_model(model_new, **params_dict)
 			assert model_xyss.pixsize == image.pixsize
-			c = np.sum((image.data - model_xyss.data)**2)
-			return c
+
+			return _calc_chisq(imgdata=image.data, modeldata=model_xyss.data, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
 		# hyperfit
 		params_init = [getattr(hypermodel_init, h) for h in freehyperparams]
-		res_hyper = so.minimize(_chisq_hyper, x0=params_init, args=(freeparams, freehyperparams, image, hypermodel_init), method='Powell')
+		res_hyper = so.minimize(_chisq_hyper, x0=params_init, args=(freeparams, freehyperparams, image, hypermodel_init, model_maxlim, neg_penal), method='Powell')
 
 		# pick up xys of the bestfit hyperfit
 		params_dict = dict(zip(freehyperparams, _ensure_1d_array(res_hyper.x)))
 		model_new = _make_model_with_new_hyperparam(params_dict, hypermodel_init)
-		res_xys = self._fitloop_xys(image, model_new, freeparams=freeparams)
+		res_xys = self._fitloop_xys(image, model_new, freeparams=freeparams, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
 		return res_hyper, res_xys
 
