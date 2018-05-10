@@ -8,6 +8,7 @@ import copy
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from astropy.io import fits
 from astropy import wcs
@@ -20,7 +21,7 @@ from drizzlepac import astrodrizzle as adz
 
 import tinyfit
 
-def funcdrz_aperture_photometry(drz, obs, tar, source='qso', fp_image='drz_crop.fits'): 
+def funcdrz_aperture_photometry(drz, obs, tar, source='qso', fp_image='drz_crop.fits', radii=([1., 2., 3., 4., ])*u.arcsec): 
 	""" measure aperture photometry of images
 	"""
 	s = drz.sources[source]
@@ -34,8 +35,6 @@ def funcdrz_aperture_photometry(drz, obs, tar, source='qso', fp_image='drz_crop.
 	data = fits.getdata(fp)
 
 	# define aperture
-	radii = ([1., 2., 3., 4., ])*u.arcsec
-
 	pos_sky = ac.SkyCoord(s.ra, s.dec, frame='icrs', unit='deg')
 	apt_sky = [pu.SkyCircularAperture(pos_sky, r=r) for r in radii]
 	apt_pix = [apt_sky.to_pixel(wcs=w) for apt_sky in apt_sky]
@@ -59,22 +58,19 @@ def funcdrz_aperture_photometry(drz, obs, tar, source='qso', fp_image='drz_crop.
 	phot['yc_drz'] = apt_pix[0].positions[0][1]
 	phot['ra'] = s.ra
 	phot['dec'] = s.dec
-	phot['target'] = tar.name
-	phot['observation'] = obs.name
-	phot['drz'] = drz.name
-	phot['source'] = source
 	phot['fn_image'] = fp_image
-	cols = ['target', 'observation', 'drz', 'source', 'fn_image', 'ra', 'dec', 'xc_drz', 'yc_drz', 'xc_drzcrop', 'yc_drzcrop', ]+['aperture_sum_'+str(i) for i in range(len(radii))]
+	cols = ['fn_image', 'ra', 'dec', 'xc_drz', 'yc_drz', 'xc_drzcrop', 'yc_drzcrop', ]+['aperture_sum_'+str(i) for i in range(len(radii))]
 
 	phot = phot[cols]
 
 	# write photometric results
 	phot.write(fp_root+'_aphot.csv', overwrite=True)
 
-	# write radii dictionary
-	radii_dict = {'aperture_sum_'+str(i): str(radii[i]) for i in range(len(radii))}
-	with open('radii_dict.json', 'w') as f:
-		json.dump(radii_dict, f)
+	# write radii csv
+	radii_df = pd.DataFrame({'tag': ['aperture_sum_'+str(i) for i in range(len(radii))], 
+							'radii': [str(radii[i]) for i in range(len(radii))]})
+	radii_df = radii_df[['tag','radii']]
+	radii_df.to_csv('radii.csv', index=False)
 
 	# visual
 	v = tinyfit.visual.visual(fp)
@@ -101,7 +97,88 @@ def funcflt_stealresult(flt, drz, obs, tar, dir_run_from='../run_oldcentriod/', 
 
 
 
-def funcflt_psffit(flt, drz, obs, tar, source='qso', tofocus=False): 
+# def funcflt_psffit(flt, drz, obs, tar, source='qso', tofocus=False): 
+# 	""" fitting psf to source for each flt to produce flt/source/flt_psf.fits
+
+# 	Note:
+# 		focus is determined from hyperfit to star0 then fixed and applied to source. the free params for the psf fit of the source are x, y, scale, sigma. 
+
+# 	Args:
+# 		# fixed arguments: 
+# 		flt
+# 		drz
+# 		obs
+# 		tar
+# 		# user arguments:
+# 		source='qso'
+# 		tofocus=false
+# 	"""
+
+# 	# setting
+# 	diameter = 6
+# 	focus = 0.
+# 	subsample = 5
+
+# 	# run
+# 	if not os.path.isfile(flt.fp_skysub):
+# 		flt.make_flt_skysub()
+
+# 	# focus
+# 	if tofocus:
+# 		s = flt.sources['star0']
+
+# 		if not os.path.isdir(s.directory):
+# 			os.mkdir(s.directory)
+
+# 		dir_psf = s.directory+'psf/'
+# 		if not os.path.isdir(dir_psf):
+# 			os.mkdir(dir_psf)
+
+# 		tpsf = tinyfit.tinypsf.tinypsf(camera=obs.camera, filter=obs.filter, position=[s.x, s.y], spectrum_form=s.spectrum_form, spectrum_type=s.spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn='psf', dir_out=dir_psf)
+
+# 		f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=0.13)
+# 		f.set_model(tinypsf=tpsf)
+# 		f.hyperfit(x=s.x, y=s.y, freeparams=['dx', 'dy', 'scale', 'sigma'], freehyperparams=['focus'])
+# 		# write outputs
+# 		f.img_crop.writeto(s.directory+'img_crop.fits', overwrite=True)
+# 		f.img_crop_bestfit.writeto(s.directory+'img_crop_bestfit.fits', overwrite=True)
+# 		f.img_crop_residual.writeto(s.directory+'img_crop_residual.fits', overwrite=True)
+# 		f.result.save(s.directory+'result.json')
+# 		focus_bestfit_star0 = f.result.hyperparams.focus
+# 	else: 
+# 		# get focus
+# 		f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=0.13)
+# 		f.result.load(flt.sources['star0'].directory+'result.json')
+# 		focus_bestfit_star0 = f.result.hyperparams.focus
+
+# 	# source psf fit
+# 	s = flt.sources[source]
+# 	if not os.path.isdir(s.directory):
+# 		os.mkdir(s.directory)
+
+# 	dir_psf = s.directory+'psf/'
+# 	if not os.path.isdir(dir_psf):
+# 		os.mkdir(dir_psf)
+
+# 	tpsf = tinyfit.tinypsf.tinypsf(camera=obs.camera, filter=obs.filter, position=[s.x, s.y], spectrum_form=s.spectrum_form, spectrum_type=s.spectrum_type, diameter=diameter, focus=focus_bestfit_star0, subsample=subsample, fn='psf', dir_out=dir_psf)
+
+# 	f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=0.13)
+# 	f.set_model(tinypsf=tpsf)
+# 	tpsf.write_params(s.directory+'tiny_params.json')
+# 	f.fit(x=s.x, y=s.y, freeparams=['dx', 'dy', 'scale', 'sigma'])
+
+# 	# write outputs
+# 	f.img_crop.writeto(s.directory+'img_crop.fits', overwrite=True)
+# 	f.img_crop_bestfit.writeto(s.directory+'img_crop_bestfit.fits', overwrite=True)
+# 	f.img_crop_residual.writeto(s.directory+'img_crop_residual.fits', overwrite=True)
+# 	f.result.save(s.directory+'result.json')
+
+# 	hdus_bestfit = f.get_hdus_bestfit()
+# 	hdus_bestfit.writeto(s.directory+'flt_psf.fits', overwrite=True)
+
+
+
+def funcflt_psffit(flt, drz, obs, tar, source='qso', tofocus=False, neg_penal=1.): 
 	""" fitting psf to source for each flt to produce flt/source/flt_psf.fits
 
 	Note:
@@ -169,7 +246,7 @@ def funcflt_psffit(flt, drz, obs, tar, source='qso', tofocus=False):
 	f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=0.13)
 	f.set_model(tinypsf=tpsf)
 	tpsf.write_params(s.directory+'tiny_params.json')
-	f.fit(x=s.x, y=s.y, freeparams=['dx', 'dy', 'scale', 'sigma'])
+	f.fit(x=s.x, y=s.y, freeparams=['dx', 'dy', 'scale', 'sigma'], neg_penal=neg_penal)
 
 	# write outputs
 	f.img_crop.writeto(s.directory+'img_crop.fits', overwrite=True)
@@ -244,3 +321,4 @@ def funcdrz_plot(drz, obs, tar, source='qso'):
 	v = tinyfit.visual.visual(fn=fn_crop)
 
 	v.ratioplot(fn=fn_psfsub_crop, stretch='linear', cmap=plt.cm.jet, fn_out=fn_plot, colorbar=True)
+	plt.close('all')

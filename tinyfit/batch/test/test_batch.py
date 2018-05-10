@@ -3,6 +3,9 @@ import os
 import shutil
 import json
 import numpy as np
+import random
+import pandas as pd
+
 
 from .. import batch
 from ..batch import Batch
@@ -102,10 +105,6 @@ def test_batch_iterflt():
 	assert c.count == 24
 
 
-def test_batch_multiprocessing():
-	assert False
-
-
 def test_batch_make_roadmap():
 	"""
 	make roadmap from tables. 
@@ -117,7 +116,7 @@ def test_batch_make_roadmap():
 						fp_tab_observations=[dir_tab+'obs0.csv', dir_tab+'obs1.csv'],
 						fp_tab_sources=[dir_tab+'source_qso.csv',dir_tab+'source_star0.csv',dir_tab+'source_star1.csv',],
 						source_names=['qso', 'star0', 'star1'],
-						dir_data='/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/')
+						dir_data='/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/')
 
 	assert status
 	assert os.path.isfile(fp_roadmap)
@@ -131,3 +130,34 @@ def test_batch_make_roadmap():
 	# drz and flt should have different qso x, y location
 	assert r[0]["observations"][0]["drzs"][0]["flts"][0]["sources"]["qso"]["x"] != r[0]["observations"][0]["drzs"][0]["sources"]["qso"]["x"]
 
+
+
+def test_batch_compile_drz():
+	"""
+	test that build() makes directories and copy drz and flt data. 
+	"""
+	b = Batch(dir_data+'roadmap_lite.json', directory=dir_testing)
+	b.build()
+
+	def funcdrz_make_number_csv(drz, obs, tar, source='qso'):
+		s = drz.sources[source]
+		df = pd.DataFrame()
+		df['number_1'] = [random.randint(0, 10)]
+		df['number_2'] = [random.randint(10, 20)]
+		if not os.path.isdir(s.directory):
+			os.mkdir(s.directory)
+		df.to_csv(s.directory+'number.csv', index=False)
+
+	b.iterdrz(funcdrz_make_number_csv, source='qso')
+	assert os.path.isfile(b.targets[0].observations[0].drzs[0].sources['qso'].directory+'number.csv')
+
+	fp_out = dir_testing+'compiled_number.csv'
+	dfnumber = b.compiledrz_source(fn='number.csv', fp_out=fp_out, source='qso')
+
+	assert os.path.isfile(fp_out)
+
+	dfnumber_read = pd.read_csv(fp_out)
+	assert len(dfnumber_read) == 4
+	assert dfnumber_read.loc[0, 'target'] == 'SDSSJ0832+1615'
+	assert dfnumber_read.loc[0, 'drz'] == 'drz0'
+	assert dfnumber_read.loc[0, 'source'] == 'qso'

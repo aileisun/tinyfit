@@ -152,7 +152,7 @@ def _make_model_with_new_hyperparam(params_dict, hypermodel_init):
 		return None
 
 
-def _calc_chisq(imgdata, modeldata, model_maxlim=np.inf, neg_penal=1.):
+def _calc_chisq(imgdata, modeldata, params_dict={}, params_range={}, model_maxlim=np.inf, neg_penal=1., nlarge=1.e10):
 	"""
 	calculate the chisq given two arrays -- imgdata and modeldata. model_maxlim is the maximum the model data can take, otherwise it will return inf chisq. neg_penal is a factor that penalizes negative residual. 
 	"""
@@ -163,8 +163,14 @@ def _calc_chisq(imgdata, modeldata, model_maxlim=np.inf, neg_penal=1.):
 	else: 
 		maxlim = model_maxlim
 
+	# if param goes out of range then return a large number
+	for key, rnge in params_range.items():
+		if (params_dict[key] < rnge[0]) | (params_dict[key] > rnge[1]):
+			return nlarge
+
+	# if model maximum goes beyond limit then return a large number
 	if modeldata.max() > maxlim:
-		return np.inf
+		return nlarge
 	else: 
 		if neg_penal == 1.:
 			return np.sum((imgdata - modeldata)**2)
@@ -307,7 +313,7 @@ class imgfitter(object):
 			self.model_init = self.hypermodel_init.psf
 
 
-	def fit(self, x, y, freeparams=['dx', 'dy', 'scale'], charge_diffusion=True, model_maxlim=np.inf, neg_penal=1.):
+	def fit(self, x, y, freeparams=['dx', 'dy', 'scale'], params_range={}, charge_diffusion=True, model_maxlim=np.inf, neg_penal=1.):
 		""" Fit the model to the image at the specified location and image size. 
 
 		Example:
@@ -318,6 +324,8 @@ class imgfitter(object):
 			y (int): y coordinate of the center of the cropped image
 			freeparams=['dx', 'dy', 'scale'] (:obj: 'list' of 'str'): 
 				List of free params to fit. Could be subset of ['dx', 'dy', 'scale', 'sigma']. 'dx' 'dy' are for translation; 'scale' is multiplied to pix values; 'sigma' is width of Gaussian smoothing. By default no smoothing is used. 
+			params_range={} (:obj: 'dictionary' of 'tuple')
+				the range the free parameter can take, for example: {'dx': (-1., 1.), 'dy': (-2., 2.), }. Default: no range. 
 			charge_diffusion = True (int): 
 				If true then apply charge diffusion to model if required. 
 			model_maxlim = np.inf (float or str):
@@ -344,7 +352,7 @@ class imgfitter(object):
 		self._cropimg(xc=x, yc=y)
 
 		# fitting shift and scale
-		res_xys = self._fitloop_xys(image = self.img_crop, model=self.model_init, freeparams=freeparams, model_maxlim=model_maxlim, neg_penal=neg_penal)
+		res_xys = self._fitloop_xys(image = self.img_crop, model=self.model_init, freeparams=freeparams, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
 		if res_xys.success:
 
@@ -361,7 +369,7 @@ class imgfitter(object):
 			return False
 
 
-	def hyperfit(self, x, y, freeparams=['dx', 'dy', 'scale'], freehyperparams=[], charge_diffusion=True, model_maxlim=np.inf, neg_penal=1.):
+	def hyperfit(self, x, y, freeparams=['dx', 'dy', 'scale'], freehyperparams=[], params_range={}, charge_diffusion=True, model_maxlim=np.inf, neg_penal=1.):
 		""" Fit the hypermodel to the image at the specified location and image size. 
 
 		Example:
@@ -374,6 +382,8 @@ class imgfitter(object):
 				List of free params to fit. Could be subset of ['dx', 'dy', 'scale', 'sigma']. See fit() for details. 
 			freehyperparams = [] (list: 'str'): 
 				List of strings indicating hyperparameters to fit, e.g., ['focus', ]. 
+			params_range={} (:obj: 'dictionary' of 'tuple')
+				the range the free parameter can take, for example: {'dx': (-1., 1.), 'dy': (-2., 2.), }. Default: no range. 
 			charge_diffusion = True (int): 
 				If true then apply charge diffusion to model if required. 
 			model_maxlim = np.inf (float or str):
@@ -399,7 +409,7 @@ class imgfitter(object):
 		# cropping
 		self._cropimg(xc=x, yc=y)
 
-		res_hyper, res_xys = self._fitloop_hyperparam(image=self.img_crop, hypermodel_init=self.hypermodel_init, freeparams=freeparams, freehyperparams=freehyperparams, model_maxlim=model_maxlim, neg_penal=neg_penal)
+		res_hyper, res_xys = self._fitloop_hyperparam(image=self.img_crop, hypermodel_init=self.hypermodel_init, freeparams=freeparams, freehyperparams=freehyperparams, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
 		if res_hyper.success and res_xys.success:
 			print('hyperfit successful')
@@ -455,7 +465,7 @@ class imgfitter(object):
 		return imgobj(data=residual_data, pixsize=self.img_crop.pixsize)
 
 
-	def _fitloop_xys(self, image, model, freeparams=['dx', 'dy', 'scale'], model_maxlim=np.inf, neg_penal=1.):
+	def _fitloop_xys(self, image, model, freeparams=['dx', 'dy', 'scale'], params_range={}, model_maxlim=np.inf, neg_penal=1.):
 		""" loop for fitting model to image with free params x, y, scale 
 
 		Args:
@@ -463,6 +473,8 @@ class imgfitter(object):
 			model (:obj: imgobj)
 			freeparams=['dx', 'dy', 'scale'] (:obj: 'list' of 'str'): 
 				List of free params to fit. Could be subset of ['dx', 'dy', 'scale', 'sigma']. 'dx' 'dy' are for translation; 'scale' is multiplied to pix values; 'sigma' is width of Gaussian smoothing. By default no smoothing is fitted. 
+			params_range={} (:obj: 'dictionary' of 'tuple')
+				the range the free parameter can take, for example: {'dx': (-1., 1.), 'dy': (-2., 2.), }. Default: no range. 
 			model_maxlim = np.inf (float or str):
 				Limits to the maximum value of the model image. Default: inf. Can be set to a number. If set to 'data', then it's determined from the max of data cropped image 
 			neg_penal = 1. (float):
@@ -472,22 +484,29 @@ class imgfitter(object):
 			(:obj: scipy minimization result)
 		"""
 
-		def _chisq_xys(p, freeparams, image, model, model_maxlim=np.inf, neg_penal=1.):
+		def _chisq_xys(p, freeparams, image, model, params_range, model_maxlim=np.inf, neg_penal=1.):
 			""" calculate chisq. Return inf if model max is larter than model_maxlim. """
 			params_dict = dict(zip(freeparams, p))
 			model_new = self._get_shifted_scaled_smoothed_resampled_model(model, **params_dict)
 			assert model_new.pixsize == image.pixsize
 
-			return _calc_chisq(imgdata=image.data, modeldata=model_new.data, model_maxlim=model_maxlim, neg_penal=neg_penal)
+			return _calc_chisq(imgdata=image.data, modeldata=model_new.data, params_dict=params_dict, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
 		# set init
 		init_dictionary = {'dx': 0.1, 'dy': 0.1, 
 							'scale': image.data.max()/model.data.max(), 
 							'sigma': 0.1}
+
+		# reset init according to parmas_range
+		for key, rnge in params_range.items():
+			if (init_dictionary[key] < rnge[0]) | (init_dictionary[key] > rnge[1]):
+				init_dictionary[key] = (rnge[0] + rnge[1])/2
+
 		p_init = [init_dictionary[freeparam] for freeparam in freeparams]
 
 		# run
-		minresult = so.minimize(_chisq_xys, x0=p_init, args=(freeparams, image, model, model_maxlim, neg_penal), method='Powell')
+		minresult = so.minimize(_chisq_xys, x0=p_init, args=(freeparams, image, model, params_range, model_maxlim, neg_penal), method='Powell')
+
 
 		if 'sigma' in freeparams:
 			isigma = np.where('sigma' == np.array(freeparams))[0][0]
@@ -497,7 +516,7 @@ class imgfitter(object):
 
 
 
-	def _fitloop_hyperparam(self, image, hypermodel_init, freeparams, freehyperparams, model_maxlim=np.inf, neg_penal=1.):
+	def _fitloop_hyperparam(self, image, hypermodel_init, freeparams, freehyperparams, params_range={}, model_maxlim=np.inf, neg_penal=1.):
 		""" fitting hypermodel to image with free hyperparams
 
 		Args:
@@ -506,6 +525,7 @@ class imgfitter(object):
 			hypermodel_init (:obj: tinypsf)
 			freeparams (:obj: 'list' of 'str')
 			freehyperparams (:obj: 'list' of 'str')
+			params_range={} (:obj: 'dictionary' of 'tuple')
 			model_maxlim = np.inf (float or str)
 			neg_penal = 1. (float)
 
@@ -513,27 +533,27 @@ class imgfitter(object):
 			(:obj: scipy minimization result)
 		"""
 
-		def _chisq_hyper(p, freeparams, freehyperparams, image, hypermodel_init, model_maxlim=np.inf, neg_penal=1.):
+		def _chisq_hyper(p, freeparams, freehyperparams, image, hypermodel_init, params_range, model_maxlim=np.inf, neg_penal=1.):
 			""" p = (dx, dy, scale) """
 			hyperparams_dict = dict(zip(freehyperparams, p))
 			model_new = _make_model_with_new_hyperparam(hyperparams_dict, hypermodel_init)
 
-			res_xys = self._fitloop_xys(image, model_new, freeparams=freeparams, model_maxlim=model_maxlim, neg_penal=neg_penal)
+			res_xys = self._fitloop_xys(image, model_new, freeparams=freeparams, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
 			params_dict = dict(zip(freeparams, res_xys.x))
 			model_xyss = self._get_shifted_scaled_smoothed_resampled_model(model_new, **params_dict)
 			assert model_xyss.pixsize == image.pixsize
 
-			return _calc_chisq(imgdata=image.data, modeldata=model_xyss.data, model_maxlim=model_maxlim, neg_penal=neg_penal)
+			return _calc_chisq(imgdata=image.data, modeldata=model_xyss.data, params_dict=params_dict, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
 		# hyperfit
 		params_init = [getattr(hypermodel_init, h) for h in freehyperparams]
-		res_hyper = so.minimize(_chisq_hyper, x0=params_init, args=(freeparams, freehyperparams, image, hypermodel_init, model_maxlim, neg_penal), method='Powell')
+		res_hyper = so.minimize(_chisq_hyper, x0=params_init, args=(freeparams, freehyperparams, image, hypermodel_init, params_range, model_maxlim, neg_penal), method='Powell')
 
 		# pick up xys of the bestfit hyperfit
 		params_dict = dict(zip(freehyperparams, _ensure_1d_array(res_hyper.x)))
 		model_new = _make_model_with_new_hyperparam(params_dict, hypermodel_init)
-		res_xys = self._fitloop_xys(image, model_new, freeparams=freeparams, model_maxlim=model_maxlim, neg_penal=neg_penal)
+		res_xys = self._fitloop_xys(image, model_new, freeparams=freeparams, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
 		return res_hyper, res_xys
 
@@ -602,6 +622,23 @@ class imgfitter(object):
 
 		return x_img, y_img
 
+
+
+	def _xy_to_cropxy(self, x, y):
+		"""Translate x, y coordinate in the cropped image to that of the original image. 
+
+		Args:
+			x (float): x coordinate in the original image
+			y (float): y coordinate in the original image
+
+		Return: 
+			x_crop (float): x coordinate in the cropped image
+			y_crop (float): y coordinate in the cropped image			
+		"""
+		x_crop = x + self.img_crop.xc - self._cropxc 
+		y_crop = y + self.img_crop.yc - self._cropyc
+
+		return x_crop, y_crop
 
 	def _get_shifted_scaled_smoothed_resampled_model(self, model, dx=0., dy=0., scale=1., sigma=0.):
 		""" Shift, scale, smooth, and resample model to img_crop grids according to params. 

@@ -5,6 +5,7 @@ batch runs psf fitting on targets
 """
 import os
 import json
+import pandas as pd
 
 from . import targetcls
 from .targetcls import make_roadmap
@@ -73,6 +74,38 @@ class Batch(object):
 				for drz in obs.drzs:
 					func(drz=drz, obs=obs, tar=tar, **kwargs)
 
+
+	def compiledrz_source(self, fn, source='qso', fp_out=None):
+		"""
+		return compiled csv file from the corresponding source directory in each of the drz. 
+
+		Note: 
+			new columns tar, observation, drz, source will be added in front. 
+
+		Args:
+			fn (str): file name of the csv file, for example, 'number.csv'. 
+			source='qso' (str): the source under drz to be compiled, for example, 'qso'. 
+			fp_out=None (str): if set to str then write result as csv file to fp_out. 
+
+		Return:
+			(:obj: pandas.DataFrame)
+		"""
+		df_compiled = pd.DataFrame()
+		for tar in self.targets:
+			for obs in tar.observations:
+				for drz in obs.drzs:
+					s = drz.sources[source]
+					df = pd.read_csv(s.directory+fn)
+					df.insert(loc=0, column='target', value=tar.name)
+					df.insert(loc=1, column='observation', value=obs.name)
+					df.insert(loc=2, column='drz', value=drz.name)
+					df.insert(loc=3, column='source', value=source)
+					df_compiled = pd.concat([df_compiled, df], ignore_index=True)
+
+		if fp_out is not None:
+			df_compiled.to_csv(fp_out, index=False)
+
+		return df_compiled
 
 
 	def iterflt(self, func, **kwargs):

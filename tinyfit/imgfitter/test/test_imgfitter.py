@@ -107,12 +107,17 @@ def test_imgfitter_fit():
 	chisq_nogauss = f.result.chisq
 	assert status
 	assert f.result.chisq > 0.
+	assert f.result.chisq < 2000.
 
 	assert f.img_crop_bestfit.data.shape == (ny, nx)
 	assert f.img_crop_residual.data.shape == (ny, nx)
 
-	f.img_crop_residual.writeto(dir_testing+'residual.fits')
-	assert os.path.isfile(dir_testing+'residual.fits')
+	f.img_crop.writeto(dir_testing+'img_crop.fits')
+	f.img_crop_residual.writeto(dir_testing+'residual_crop.fits')
+	assert os.path.isfile(dir_testing+'residual_crop.fits')
+
+	f.result.save(dir_testing+'result.json')
+	assert os.path.isfile(dir_testing+'result.json')
 
 	f.img_bestfit.writeto(dir_testing+'img_bestfit.fits')
 	assert os.path.isfile(dir_testing+'img_bestfit.fits')
@@ -162,18 +167,20 @@ def test_imgfitter_hyperfit():
 	fn_img = dir_verif+'science_img.fits'
 	nx, ny = 64, 64
 
-	# psf
-	xstar, ystar = 512, 511
-	camera = 'wfc3_ir'
-	filter = 'f160w'
-	spectrum_form = 'stellar'
-	spectrum_type = 'k7v'
-	diameter = 6
-	focus = -0.5
-	subsample = 5
-	fn_psf = 'j1652_wfc3_star1'
+	# # psf
+	# xstar, ystar = 512, 511
+	# camera = 'wfc3_ir'
+	# filter = 'f160w'
+	# spectrum_form = 'stellar'
+	# spectrum_type = 'k7v'
+	# diameter = 6
+	# focus = -0.5
+	# subsample = 5
+	# fn_psf = 'j1652_wfc3_star1'
 
-	tpsf = tinypsf(camera=camera, filter=filter, position=[xstar, ystar], spectrum_form=spectrum_form, spectrum_type=spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn=fn_psf, dir_out=dir_testing)
+	# tpsf = tinypsf(camera=camera, filter=filter, position=[xstar, ystar], spectrum_form=spectrum_form, spectrum_type=spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn=fn_psf, dir_out=dir_testing)
+
+	tpsf = get_standard_tpsf()
 
 	f = imgfitter(filename=fn_img, pixsize=pixsize_img, nx=nx, ny=ny)
 	f.set_model(tinypsf=tpsf)
@@ -359,17 +366,19 @@ def test_imgfitter_fit_model_maxlim():
 	f.result.save(dir_testing+'result_maxlim.json')
 
 	# hyper
-	xstar, ystar = 512, 511
-	camera = 'wfc3_ir'
-	filter = 'f160w'
-	spectrum_form = 'stellar'
-	spectrum_type = 'k7v'
-	diameter = 6
-	focus = -0.5
-	subsample = 5
-	fn_psf = 'j1652_wfc3_star1'
+	# xstar, ystar = 512, 511
+	# camera = 'wfc3_ir'
+	# filter = 'f160w'
+	# spectrum_form = 'stellar'
+	# spectrum_type = 'k7v'
+	# diameter = 6
+	# focus = -0.5
+	# subsample = 5
+	# fn_psf = 'j1652_wfc3_star1'
 
-	tpsf = tinypsf(camera=camera, filter=filter, position=[xstar, ystar], spectrum_form=spectrum_form, spectrum_type=spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn=fn_psf, dir_out=dir_testing)
+	# tpsf = tinypsf(camera=camera, filter=filter, position=[xstar, ystar], spectrum_form=spectrum_form, spectrum_type=spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn=fn_psf, dir_out=dir_testing)
+
+	tpsf = get_standard_tpsf()
 
 	f.set_model(tinypsf=tpsf)
 	status = f.hyperfit(x=xstar, y=ystar, freeparams=freeparams, freehyperparams=['focus'], model_maxlim='data')
@@ -384,7 +393,7 @@ def test_imgfitter_fit_model_maxlim():
 
 
 
-def test_imgfitter_fit_neg_weight():
+def test_imgfitter_fit_neg_penal():
 	""" penalize the negtive residuals by a factor of 'neg_penal' in the chisq calculation. 
 	"""
 
@@ -422,17 +431,7 @@ def test_imgfitter_fit_neg_weight():
 
 
 	# with hyperfit
-	xstar, ystar = 512, 511
-	camera = 'wfc3_ir'
-	filter = 'f160w'
-	spectrum_form = 'stellar'
-	spectrum_type = 'k7v'
-	diameter = 6
-	focus = -0.5
-	subsample = 5
-	fn_psf = 'j1652_wfc3_star1'
-
-	tpsf = tinypsf(camera=camera, filter=filter, position=[xstar, ystar], spectrum_form=spectrum_form, spectrum_type=spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn=fn_psf, dir_out=dir_testing)
+	tpsf = get_standard_tpsf()
 
 	f.set_model(tinypsf=tpsf)
 
@@ -445,3 +444,72 @@ def test_imgfitter_fit_neg_weight():
 	f.img_crop_residual.writeto(dir_testing+'residual_negpenal_hyper.fits')
 	f.img_crop_bestfit.writeto(dir_testing+'img_bestfit_negpenal_hyper.fits')
 	f.result.save(dir_testing+'result_negpenal_hyper.json')
+
+
+def get_standard_tpsf():
+	xstar, ystar = 512, 511
+	camera = 'wfc3_ir'
+	filter = 'f160w'
+	spectrum_form = 'stellar'
+	spectrum_type = 'k7v'
+	diameter = 6
+	focus = -0.5
+	subsample = 5
+	fn_psf = 'j1652_wfc3_star1'
+
+	return tinypsf(camera=camera, filter=filter, position=[xstar, ystar], spectrum_form=spectrum_form, spectrum_type=spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn=fn_psf, dir_out=dir_testing)
+
+
+def test_imgfitter_fit_param_range():
+
+	xstar, ystar = 512, 511
+	nx, ny = 64, 64
+
+	fn = dir_verif+'science_img.fits'
+	fn_model = dir_verif+'j1652_wfc3_sub5.fits'
+
+	f = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny, )
+	f.set_model(filename=fn_model)
+
+	# no gaussian smoothing
+	freeparams = ['dx', 'dy', 'scale', 'sigma']
+
+	status = f.fit(x=xstar, y=ystar, freeparams=freeparams)
+	chisq_norange = f.result.chisq
+
+	f.img_crop.writeto(dir_testing+'img_crop.fits')
+	f.img_crop_residual.writeto(dir_testing+'residual_crop.fits')
+	f.result.save(dir_testing+'result.json')
+
+	params_range = {'dx':(-2., -1.), 'dy':(-2, 0.), }
+	status = f.fit(x=xstar, y=ystar, freeparams=freeparams, params_range=params_range)
+
+	f.img_crop_residual.writeto(dir_testing+'residual_crop_range.fits')
+	f.result.save(dir_testing+'result_range.json')
+
+	assert status
+	assert f.result.chisq > 0.
+	# assert f.result.chisq > chisq_norange
+	assert f.result.params.dx > params_range['dx'][0]
+	assert f.result.params.dx < params_range['dx'][1]
+	assert f.result.params.dy > params_range['dy'][0]
+	assert f.result.params.dy < params_range['dy'][1]
+
+
+	# hyper
+
+	tpsf = get_standard_tpsf()
+	f.set_model(tinypsf=tpsf)
+	status = f.hyperfit(x=xstar, y=ystar, freeparams=freeparams, freehyperparams=['focus'], params_range=params_range)
+
+	f.img_crop_residual.writeto(dir_testing+'residual_crop_hyper_range.fits')
+	f.result.save(dir_testing+'result_hyper_range.json')
+
+
+	assert status
+	assert f.result.chisq > 0.
+	# assert f.result.chisq > chisq_norange
+	assert f.result.params.dx > params_range['dx'][0]
+	assert f.result.params.dx < params_range['dx'][1]
+	assert f.result.params.dy > params_range['dy'][0]
+	assert f.result.params.dy < params_range['dy'][1]

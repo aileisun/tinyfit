@@ -32,11 +32,11 @@
 				"drzs": [ 
 					{
 						"name": "drz0",
-						"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/id9ya2010_drz.fits",
+						"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/id9ya2010_drz.fits",
 						"flts": [ 
 							{
 								"name": "flt0", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/id9ya2lnq_flt.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/id9ya2lnq_flt.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.006137678,
@@ -66,7 +66,7 @@
 	 						}, 
 							{
 								"name": "flt1", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/id9ya2loq_flt.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/id9ya2loq_flt.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.006137678,
@@ -96,7 +96,7 @@
 	 						}, 
 							{
 								"name": "flt2", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/id9ya2lqq_flt.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/id9ya2lqq_flt.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.006137678,
@@ -126,7 +126,7 @@
 	 						}, 
 							{
 								"name": "flt3", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/id9ya2lsq_flt.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/id9ya2lsq_flt.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.006137678,
@@ -191,11 +191,11 @@
 				"drzs": [ 
 					{
 						"name": "drz0",
-						"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y02010_drc.fits",
+						"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y02010_drc.fits",
 						"flts": [ 
 							{
 								"name": "flt0", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y02lfq_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y02lfq_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.006137678,
@@ -225,7 +225,7 @@
 	 						}, 
 							{
 								"name": "flt1", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y02lfq_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y02lfq_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.006137678,
@@ -255,7 +255,7 @@
 	 						}, 
 							{
 								"name": "flt2", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y02lgq_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y02lgq_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.006137678,
@@ -285,7 +285,7 @@
 	 						}, 
 							{
 								"name": "flt3", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y02lgq_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y02lgq_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.006137678,
@@ -315,7 +315,7 @@
 	 						}, 
 							{
 								"name": "flt4", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y02liq_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y02liq_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.006137678,
@@ -345,7 +345,7 @@
 	 						}, 
 							{
 								"name": "flt5", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y02liq_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y02liq_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.006137678,
@@ -375,7 +375,7 @@
 	 						}, 
 							{
 								"name": "flt6", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y02lkq_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y02lkq_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.006137678,
@@ -405,7 +405,7 @@
 	 						}, 
 							{
 								"name": "flt7", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y02lkq_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y02lkq_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.006137678,
@@ -498,11 +498,11 @@
 				"drzs": [ 
 					{
 						"name": "drz0",
-						"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/id9ya3010_drz.fits",
+						"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/id9ya3010_drz.fits",
 						"flts": [ 
 							{
 								"name": "flt0", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/id9ya3v6q_flt.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/id9ya3v6q_flt.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.696466032,
@@ -532,7 +532,7 @@
 	 						}, 
 							{
 								"name": "flt1", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/id9ya3v7q_flt.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/id9ya3v7q_flt.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.696466032,
@@ -562,7 +562,7 @@
 	 						}, 
 							{
 								"name": "flt2", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/id9ya3v9q_flt.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/id9ya3v9q_flt.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.696466032,
@@ -592,7 +592,7 @@
 	 						}, 
 							{
 								"name": "flt3", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/id9ya3vbq_flt.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/id9ya3vbq_flt.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.696466032,
@@ -657,11 +657,11 @@
 				"drzs": [ 
 					{
 						"name": "drz0",
-						"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y03010_drc.fits",
+						"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y03010_drc.fits",
 						"flts": [ 
 							{
 								"name": "flt0", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y03uyq_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y03uyq_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.696466032,
@@ -691,7 +691,7 @@
 	 						}, 
 							{
 								"name": "flt1", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y03uyq_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y03uyq_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.696466032,
@@ -721,7 +721,7 @@
 	 						}, 
 							{
 								"name": "flt2", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y03uzq_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y03uzq_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.696466032,
@@ -751,7 +751,7 @@
 	 						}, 
 							{
 								"name": "flt3", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y03uzq_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y03uzq_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.696466032,
@@ -781,7 +781,7 @@
 	 						}, 
 							{
 								"name": "flt4", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y03v1q_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y03v1q_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.696466032,
@@ -811,7 +811,7 @@
 	 						}, 
 							{
 								"name": "flt5", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y03v1q_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y03v1q_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.696466032,
@@ -841,7 +841,7 @@
 	 						}, 
 							{
 								"name": "flt6", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y03v3q_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y03v3q_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.696466032,
@@ -871,7 +871,7 @@
 	 						}, 
 							{
 								"name": "flt7", 
-								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/data/hst/everything/jd9y03v3q_flc.fits", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/jd9y03v3q_flc.fits", 
 								"sources": { 
 									"star1":{
 										"ra": 128.696466032,
