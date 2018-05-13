@@ -138,28 +138,33 @@ class tinypsf(object):
 		if not os.path.isdir(self.dir_out):
 			os.makedirs(self.dir_out)
 
-		status1 = call_tinytim.tiny1(dir_code=self.dir_tinytim, fn=self.fp_param, camera=self.camera, detector=self.detector, position=self.position, filter=self.filter, spectrum_form=self.spectrum_form, spectrum_type=self.spectrum_type, diameter=self.diameter, focus=self.focus, rootname=self.rootname) 
+		status_tiny = False
 
-		status2 = call_tinytim.tiny2(dir_code=self.dir_tinytim, fn=self.fp_param, rootname=self.rootname) 
+		ntry = 5
+		i = 0
+		while status_tiny == False and i < ntry:
+			i += 1
+			status1 = call_tinytim.tiny1(dir_code=self.dir_tinytim, fn=self.fp_param, camera=self.camera, detector=self.detector, position=self.position, filter=self.filter, spectrum_form=self.spectrum_form, spectrum_type=self.spectrum_type, diameter=self.diameter, focus=self.focus, rootname=self.rootname) 
 
-		# for those camera that require tiny3 to do distortion and diffusion. 
-		tiny3_cameras = ['acs_widefield', 'acs_highres', 'acs_coronoffspot', 'acs_solarblind', 'wfc3_uvis', 'wfc3_ir']
+			status2 = call_tinytim.tiny2(dir_code=self.dir_tinytim, fn=self.fp_param, rootname=self.rootname) 
 
-		if self.camera in tiny3_cameras:
-			status3 = call_tinytim.tiny3(dir_code=self.dir_tinytim, fn=self.fp_param, rootname=self.rootname, subsample=self.subsample)
-			if self.subsample > 1: 
-				print("NOTE : Subsampled, so not convolving with charge diffusion kernel. Additional convolution required. ")
-			status_tiny = np.all([status1, status2, status3])
-		else: 
-			status_tiny = np.all([status1, status2, ])
+			# for those camera that require tiny3 to do distortion and diffusion. 
+			tiny3_cameras = ['acs_widefield', 'acs_highres', 'acs_coronoffspot', 'acs_solarblind', 'wfc3_uvis', 'wfc3_ir']
 
-		os.rename(self.rootname+'00.fits', self.fp_psf)
-		status_final = os.path.isfile(self.fp_psf)
-		status = (status_tiny & status_final)
+			if self.camera in tiny3_cameras:
+				status3 = call_tinytim.tiny3(dir_code=self.dir_tinytim, fn=self.fp_param, rootname=self.rootname, subsample=self.subsample)
+				if self.subsample > 1: 
+					print("NOTE : Subsampled, so not convolving with charge diffusion kernel. Additional convolution required. ")
+				status_tiny = np.all([status1, status2, status3])
+			else: 
+				status_tiny = np.all([status1, status2, ])
 
-		if status: 
+		if status_tiny: 
+			os.rename(self.rootname+'00.fits', self.fp_psf)
 			self._load_psf()
-		return status
+			return True
+		else: 
+			raise Exception("PSF not created properly")
 
 
 	def get_psf(self):

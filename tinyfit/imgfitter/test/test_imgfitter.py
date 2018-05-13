@@ -48,7 +48,8 @@ def test_imgfitter_crop():
 	fn = dir_verif+'science_img.fits'
 	f = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny)
 
-	f._cropimg(xc=xstar, yc=ystar)
+	f._crop(xc=xstar, yc=ystar)
+	f.img_crop.writeto(dir_testing+'img_crop.fits')
 
 	assert f._cropxc == xstar
 	assert f._cropyc == ystar
@@ -68,6 +69,21 @@ def test_imgfitter_crop():
 	assert img_uncrop.data.max() == f.img_crop.data.max()
 	assert img_uncrop.data[ystar, xstar] == f.img_crop.data[ny//2, nx//2]
 	img_uncrop.writeto(dir_testing+'img_uncrop.fits')
+
+	# crop at the edge  -- required padding 
+	xstar = 16
+	ystar = 16
+	f._crop(xc=xstar, yc=ystar)
+	f.img_crop.writeto(dir_testing+'img_crop_edge.fits')
+	assert f.img_crop.data.shape == (ny, nx)
+	assert f.img_crop.nx == nx
+	assert f.img_crop.data[ny//2, nx//2] == f.img.data[ystar, xstar]
+
+	img_uncrop = f._uncrop(f.img_crop, xc=xstar, yc=ystar)
+	assert img_uncrop.data.shape == f.img.data.shape
+	assert img_uncrop.data.max() == f.img_crop.data.max()
+	assert img_uncrop.data[ystar, xstar] == f.img_crop.data[ny//2, nx//2]
+	img_uncrop.writeto(dir_testing+'img_uncrop_edge.fits')
 
 
 def test_imgfitter_resample_model():

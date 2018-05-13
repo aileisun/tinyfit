@@ -349,7 +349,7 @@ class imgfitter(object):
 		self.charge_diffusion = charge_diffusion
 
 		# cropping
-		self._cropimg(xc=x, yc=y)
+		self._crop(xc=x, yc=y)
 
 		# fitting shift and scale
 		res_xys = self._fitloop_xys(image = self.img_crop, model=self.model_init, freeparams=freeparams, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
@@ -407,7 +407,7 @@ class imgfitter(object):
 		self.charge_diffusion = charge_diffusion
 
 		# cropping
-		self._cropimg(xc=x, yc=y)
+		self._crop(xc=x, yc=y)
 
 		res_hyper, res_xys = self._fitloop_hyperparam(image=self.img_crop, hypermodel_init=self.hypermodel_init, freeparams=freeparams, freehyperparams=freehyperparams, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
@@ -558,35 +558,12 @@ class imgfitter(object):
 		return res_hyper, res_xys
 
 
-	def _uncrop(self, img, xc=None, yc=None):
-		"""
-		Return an uncropped image from a cropped image. The uncovered pixels are set to zero. 
-
-		Args: 
-			img (:obj:'imgobj'): imgobj object to be uncropped
-			xc (int, optional): x center of the cropped image. Default self._cropxc.
-			yc (int, optional): y center of the cropped image. Default self._cropxc.
-
-		Return:			
-			(:obj:'imgobj'): uncropped image of the same size as self.img
-		"""
-		if xc is None:
-			xc = self._cropxc
-		if yc is None:
-			yc = self._cropyc
-
-		x0, x1, y0, y1 = imgtools.get_cutout_xy_range(xc, yc, self.nx, self.ny)
-
-		data_uncrop = np.zeros(self.img.data.shape)
-		data_uncrop[y0:y1, x0:x1] = img.data
-
-		img_uncrop = imgobj(data=data_uncrop, pixsize=self.img.pixsize)
-		return img_uncrop
-
-
-
-	def _cropimg(self, xc, yc):
+	def _crop(self, xc, yc):
 		"""cropped the image and save to attribute self.img_crop. 
+
+		Note: 
+			The centroid of the cropped image (yc, xc) cannot be outside the original image. 
+			If part of the cropped image falls outside of the original image, the outside edge will be padded with 0. 
 
 		Args:
 			xc (int): x center of the cropped image
@@ -601,9 +578,61 @@ class imgfitter(object):
 		self._cropxc = xc
 		self._cropyc = yc
 
+		# check that the centroid of the cropped image is within self.img
+		if not _pointxy_is_in_img(xc, yc, self.img): 
+			raise Exception("cropping location outside image ")
+
 		x0, x1, y0, y1 = imgtools.get_cutout_xy_range(xc, yc, self.nx, self.ny)
-		data_crop = self.img.data[y0:y1, x0:x1]
+
+		if _pointxy_is_in_img(x0, y0, self.img) & _pointxy_is_in_img(x1, y1, self.img):
+			# padding not required
+			data_crop = self.img.data[y0:y1, x0:x1]
+		else: 
+			# padding required
+			pad_width = ((self.ny, self.ny), (self.nx, self.nx))
+			img_pad = np.pad(self.img.data, pad_width=pad_width, mode='constant', constant_values=0.)
+			data_crop = img_pad[y0+self.ny: y1+self.ny, x0+self.nx: x1+self.nx]
+
 		self.img_crop = imgobj(data=data_crop, pixsize=self.img.pixsize)
+
+
+	def _uncrop(self, img_crop, xc=None, yc=None):
+		"""
+		Return an uncropped image from a cropped image. The uncovered pixels are set to zero. 
+
+		Args: 
+			img_crop (:obj:'imgobj'): imgobj object to be uncropped
+			xc (int, optional): x center of the cropped image. Default self._cropxc.
+			yc (int, optional): y center of the cropped image. Default self._cropxc.
+
+		Return:			
+			(:obj:'imgobj'): uncropped image of the same size as self.img
+		"""
+		if xc is None:
+			xc = self._cropxc
+		if yc is None:
+			yc = self._cropyc
+
+		# check that the centroid of the cropped image is within self.img
+		if not _pointxy_is_in_img(xc, yc, self.img): 
+			raise Exception("cropping location outside image ")
+
+		x0, x1, y0, y1 = imgtools.get_cutout_xy_range(xc, yc, self.nx, self.ny)
+
+		if _pointxy_is_in_img(x0, y0, self.img) & _pointxy_is_in_img(x1, y1, self.img):
+			# padding not required
+			data_uncrop = np.zeros(self.img.data.shape)
+			data_uncrop[y0:y1, x0:x1] = img_crop.data
+		else: 
+			# padding required
+			data_uncrop = np.zeros(np.array(self.img.data.shape)+np.array([self.ny*2, self.nx*2]))
+			data_uncrop[y0+self.ny: y1+self.ny, x0+self.nx: x1+self.nx] = img_crop.data
+			data_uncrop = data_uncrop[self.ny:-self.ny, self.nx: -self.nx]
+
+		img_uncrop = imgobj(data=data_uncrop, pixsize=self.img.pixsize)
+		return img_uncrop
+
+
 
 
 	def _cropxy_to_xy(self, x, y):
@@ -708,3 +737,14 @@ class imgfitter(object):
 		return model_final
 
 
+def _pointxy_is_in_img(x, y, img):
+	""" 
+	return True if point (y, x) is in image with shape (ny, nx) then return, False otherwise.
+
+	Args: 
+		x (int)
+		y (int)
+		img (:obj: imgobj)
+	"""
+	nx, ny = img.nx, img.ny
+	return (x > 0) & (x < nx) & (y > 0) & (y < ny)

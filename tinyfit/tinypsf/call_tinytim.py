@@ -110,7 +110,7 @@ def tiny1(dir_code, fn, camera='wfc3_ir', detector=0, position=[500, 500], filte
 	command = dir_code+'tiny1 '+fn
 
 	# Set sleeping time in between prompts. Otherwise tinytim may not modify file. 
-	n = 0.01
+	n = 0.05
 
 	p = pexpect.spawn(command)
 	time.sleep(n)

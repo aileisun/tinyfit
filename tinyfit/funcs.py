@@ -96,93 +96,11 @@ def funcflt_stealresult(flt, drz, obs, tar, dir_run_from='../run_oldcentriod/', 
 	shutil.copyfile(fp_result_from, fp_result_to)
 
 
-
-# def funcflt_psffit(flt, drz, obs, tar, source='qso', tofocus=False): 
-# 	""" fitting psf to source for each flt to produce flt/source/flt_psf.fits
-
-# 	Note:
-# 		focus is determined from hyperfit to star0 then fixed and applied to source. the free params for the psf fit of the source are x, y, scale, sigma. 
-
-# 	Args:
-# 		# fixed arguments: 
-# 		flt
-# 		drz
-# 		obs
-# 		tar
-# 		# user arguments:
-# 		source='qso'
-# 		tofocus=false
-# 	"""
-
-# 	# setting
-# 	diameter = 6
-# 	focus = 0.
-# 	subsample = 5
-
-# 	# run
-# 	if not os.path.isfile(flt.fp_skysub):
-# 		flt.make_flt_skysub()
-
-# 	# focus
-# 	if tofocus:
-# 		s = flt.sources['star0']
-
-# 		if not os.path.isdir(s.directory):
-# 			os.mkdir(s.directory)
-
-# 		dir_psf = s.directory+'psf/'
-# 		if not os.path.isdir(dir_psf):
-# 			os.mkdir(dir_psf)
-
-# 		tpsf = tinyfit.tinypsf.tinypsf(camera=obs.camera, filter=obs.filter, position=[s.x, s.y], spectrum_form=s.spectrum_form, spectrum_type=s.spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn='psf', dir_out=dir_psf)
-
-# 		f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=0.13)
-# 		f.set_model(tinypsf=tpsf)
-# 		f.hyperfit(x=s.x, y=s.y, freeparams=['dx', 'dy', 'scale', 'sigma'], freehyperparams=['focus'])
-# 		# write outputs
-# 		f.img_crop.writeto(s.directory+'img_crop.fits', overwrite=True)
-# 		f.img_crop_bestfit.writeto(s.directory+'img_crop_bestfit.fits', overwrite=True)
-# 		f.img_crop_residual.writeto(s.directory+'img_crop_residual.fits', overwrite=True)
-# 		f.result.save(s.directory+'result.json')
-# 		focus_bestfit_star0 = f.result.hyperparams.focus
-# 	else: 
-# 		# get focus
-# 		f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=0.13)
-# 		f.result.load(flt.sources['star0'].directory+'result.json')
-# 		focus_bestfit_star0 = f.result.hyperparams.focus
-
-# 	# source psf fit
-# 	s = flt.sources[source]
-# 	if not os.path.isdir(s.directory):
-# 		os.mkdir(s.directory)
-
-# 	dir_psf = s.directory+'psf/'
-# 	if not os.path.isdir(dir_psf):
-# 		os.mkdir(dir_psf)
-
-# 	tpsf = tinyfit.tinypsf.tinypsf(camera=obs.camera, filter=obs.filter, position=[s.x, s.y], spectrum_form=s.spectrum_form, spectrum_type=s.spectrum_type, diameter=diameter, focus=focus_bestfit_star0, subsample=subsample, fn='psf', dir_out=dir_psf)
-
-# 	f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=0.13)
-# 	f.set_model(tinypsf=tpsf)
-# 	tpsf.write_params(s.directory+'tiny_params.json')
-# 	f.fit(x=s.x, y=s.y, freeparams=['dx', 'dy', 'scale', 'sigma'])
-
-# 	# write outputs
-# 	f.img_crop.writeto(s.directory+'img_crop.fits', overwrite=True)
-# 	f.img_crop_bestfit.writeto(s.directory+'img_crop_bestfit.fits', overwrite=True)
-# 	f.img_crop_residual.writeto(s.directory+'img_crop_residual.fits', overwrite=True)
-# 	f.result.save(s.directory+'result.json')
-
-# 	hdus_bestfit = f.get_hdus_bestfit()
-# 	hdus_bestfit.writeto(s.directory+'flt_psf.fits', overwrite=True)
-
-
-
-def funcflt_psffit(flt, drz, obs, tar, source='qso', tofocus=False, neg_penal=1.): 
+def funcflt_psffit(flt, drz, obs, tar, source='qso', freeparams=['dx', 'dy', 'scale', 'sigma'], params_range={}, neg_penal=1., refocus=False, source_focus='star0'): 
 	""" fitting psf to source for each flt to produce flt/source/flt_psf.fits
 
 	Note:
-		focus is determined from hyperfit to star0 then fixed and applied to source. the free params for the psf fit of the source are x, y, scale, sigma. 
+		If refocus is True, focus is determined from hyperfit to source_focus (e.g., 'star0') then fixed and applied to source. Otherwise, it looks for the focus in the results.json file in the directory of the source (e.g., 'star0'). 
 
 	Args:
 		# fixed arguments: 
@@ -192,7 +110,12 @@ def funcflt_psffit(flt, drz, obs, tar, source='qso', tofocus=False, neg_penal=1.
 		tar
 		# user arguments:
 		source='qso'
-		tofocus=false
+		freeparams=['dx', 'dy', 'scale', 'sigma']
+		params_range={} : dictionary of ranges (tuple) that freeparams can take
+		neg_penal=1. (float): factor to penalize negative residuals
+		refocus=false
+		source_focus='star0'
+
 	"""
 
 	# setting
@@ -205,8 +128,8 @@ def funcflt_psffit(flt, drz, obs, tar, source='qso', tofocus=False, neg_penal=1.
 		flt.make_flt_skysub()
 
 	# focus
-	if tofocus:
-		s = flt.sources['star0']
+	if refocus:
+		s = flt.sources[source_focus]
 
 		if not os.path.isdir(s.directory):
 			os.mkdir(s.directory)
@@ -225,12 +148,12 @@ def funcflt_psffit(flt, drz, obs, tar, source='qso', tofocus=False, neg_penal=1.
 		f.img_crop_bestfit.writeto(s.directory+'img_crop_bestfit.fits', overwrite=True)
 		f.img_crop_residual.writeto(s.directory+'img_crop_residual.fits', overwrite=True)
 		f.result.save(s.directory+'result.json')
-		focus_bestfit_star0 = f.result.hyperparams.focus
+		focus_bestfit = f.result.hyperparams.focus
 	else: 
 		# get focus
 		f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=0.13)
-		f.result.load(flt.sources['star0'].directory+'result.json')
-		focus_bestfit_star0 = f.result.hyperparams.focus
+		f.result.load(flt.sources[source_focus].directory+'result.json')
+		focus_bestfit = f.result.hyperparams.focus
 
 	# source psf fit
 	s = flt.sources[source]
@@ -241,12 +164,12 @@ def funcflt_psffit(flt, drz, obs, tar, source='qso', tofocus=False, neg_penal=1.
 	if not os.path.isdir(dir_psf):
 		os.mkdir(dir_psf)
 
-	tpsf = tinyfit.tinypsf.tinypsf(camera=obs.camera, filter=obs.filter, position=[s.x, s.y], spectrum_form=s.spectrum_form, spectrum_type=s.spectrum_type, diameter=diameter, focus=focus_bestfit_star0, subsample=subsample, fn='psf', dir_out=dir_psf)
+	tpsf = tinyfit.tinypsf.tinypsf(camera=obs.camera, filter=obs.filter, position=[s.x, s.y], spectrum_form=s.spectrum_form, spectrum_type=s.spectrum_type, diameter=diameter, focus=focus_bestfit, subsample=subsample, fn='psf', dir_out=dir_psf)
 
 	f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=0.13)
 	f.set_model(tinypsf=tpsf)
 	tpsf.write_params(s.directory+'tiny_params.json')
-	f.fit(x=s.x, y=s.y, freeparams=['dx', 'dy', 'scale', 'sigma'], neg_penal=neg_penal)
+	f.fit(x=s.x, y=s.y, freeparams=freeparams, params_range=params_range, neg_penal=neg_penal)
 
 	# write outputs
 	f.img_crop.writeto(s.directory+'img_crop.fits', overwrite=True)
@@ -290,11 +213,11 @@ def funcdrz_psfsub(drz, obs, tar, source='qso'):
 
 	# crop cutouts
 	f = tinyfit.imgfitter.imgfitter(filename=drz.directory+'drz.fits', pixsize=0.13)
-	f._cropimg(xc=s.x, yc=s.y)
+	f._crop(xc=s.x, yc=s.y)
 	f.img_crop.writeto(s.directory+'drz_crop.fits')
 
 	f_psub = tinyfit.imgfitter.imgfitter(filename=drz.fp_psfsub, pixsize=0.13)
-	f_psub._cropimg(xc=s.x, yc=s.y)
+	f_psub._crop(xc=s.x, yc=s.y)
 	f_psub.img_crop.writeto(s.directory+'drz_psfsub_crop.fits')
 
 

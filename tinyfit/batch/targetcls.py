@@ -500,7 +500,7 @@ class FITSource(Source):
 		super(self.__class__, self).__init__(**kwargs)
 
 		# set origin to 0 to comply with numpy convention
-		x, y = np.round(wcs.wcs_world2pix(np.array([[self.ra, self.dec]]), 0)[0])
+		x, y = np.round(wcs.all_world2pix(np.array([[self.ra, self.dec]]), 0)[0])
 		self.x, self.y = int(x), int(y)
 
 
