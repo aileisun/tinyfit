@@ -6,4 +6,5 @@ from tinyfit import imgfitter
 from tinyfit import funcs
 from tinyfit.imgobj import imgobj
 from tinyfit.batch import batch
+from tinyfit.batch import targetcls
 from tinyfit.visual import visual

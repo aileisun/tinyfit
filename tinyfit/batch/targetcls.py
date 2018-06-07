@@ -85,8 +85,8 @@ def make_roadmap(fp_tab_target, fp_tab_observations, fp_tab_sources, source_name
 		observations = []
 		for k, tab_observation in enumerate(tab_observations):
 			observation = Observation(name=observation_names[k], 
-									camera=tab_observation[k]['camera'], 
-									filter=tab_observation[k]['filter'], 
+									camera=tab_observation[i]['camera'], 
+									filter=tab_observation[i]['filter'], 
 									dir_parent=target.directory)
 
 			fn_drzs = tab_observation[i]['fn_drzs'].split(',')
@@ -283,10 +283,9 @@ class DRZ(object):
 			self.name = roadmap.pop('name', None)
 			self.directory = dir_parent+self.name+'/'
 			self.fp = roadmap.pop('fp', None)
-			# unzip fp
-			if not os.path.isfile(self.fp):
-				unzip_gz(self.fp+'.gz', self.fp)
-			self.wcs = wcs.WCS(fits.getheader(self.fp, ext=1), fits.open(self.fp))
+			self.fp_local = self.directory+'drz.fits'
+			self._set_wcs()
+
 			self.flts = [FLT(dir_parent=self.directory, roadmap=r) for r in roadmap.pop('flts', [])]
 			self.sources = get_dict_FITSources_from_roadmap(roadmap=roadmap.pop('sources', {}), wcs=self.wcs, dir_parent=self.directory)
 
@@ -294,10 +293,12 @@ class DRZ(object):
 			self.name = kwargs.pop('name', None)
 			self.directory = dir_parent+self.name+'/'
 			self.fp = kwargs.pop('fp', None)
-			# unzip fp
-			if not os.path.isfile(self.fp):
-				unzip_gz(self.fp+'.gz', self.fp)
-			self.wcs = wcs.WCS(fits.getheader(self.fp, ext=1), fits.open(self.fp))
+			self.fp_local = self.directory+'drz.fits'
+			self._set_wcs()
+			# if not os.path.isfile(self.fp):
+			# 	if os.path.isfile(self.fp+'.gz'):
+			# 		unzip_gz(self.fp+'.gz', self.fp)
+			# self.wcs = wcs.WCS(fits.getheader(self.fp, ext=1), fits.open(self.fp))
 			self.flts = kwargs.pop('flts', [])
 			sources = kwargs.pop('sources', {})
 			self.set_fitsources(sources)
@@ -307,17 +308,33 @@ class DRZ(object):
 		if self.flts == []:
 			self._initialize_flts_from_header()
 
-		self.fp_local = self.directory+'drz.fits'
+
+	def _set_wcs(self):
+		""" set wcs using the header of self.fp if it exist, if not try unzip corresponding .gz, if not from self.fp_local. """
+		if os.path.isfile(self.fp):
+			fp_4_wcs = self.fp
+		else: 
+			if os.path.isfile(self.fp+'.gz'):
+				# unzip fp
+				unzip_gz(self.fp+'.gz', self.fp)
+				fp_4_wcs = self.fp
+			else: 
+				fp_4_wcs = self.fp_local
+		self.wcs = wcs.WCS(fits.getheader(fp_4_wcs, ext=1), fits.open(fp_4_wcs))
 
 
 	def set_fitsources(self, sources):
 		""" setting attribute sources for drz and all the flts from argument and enforcing that x, y are calculated from the corresponding wcs. Auxiliary attributes of sources are also propagated over. 
 		"""
 		# setting list of additional auxiliary attributes from an arbitrary source
-		aux_attr = list(next(iter(sources.values())).__dict__.keys())
-		[aux_attr.remove(key) for key in ['name', 'ra', 'dec']]
+		if len(sources) == 0:
+			self.sources={}
+		else: 
+			aux_attr = list(next(iter(sources.values())).__dict__.keys())
+			[aux_attr.remove(key) for key in ['name', 'ra', 'dec', 'directory']]
 
-		self.sources = {name: FITSource(name=name, ra=source.ra, dec=source.dec, dir_parent=self.directory, wcs=self.wcs, **{a: getattr(source, a) for a in aux_attr}) for name, source in sources.items()}
+			# self.sources = {name: FITSource(name=name, ra=source.ra, dec=source.dec, dir_parent=self.directory, wcs=self.wcs, ) for name, source in sources.items()}
+			self.sources = {name: FITSource(name=name, ra=source.ra, dec=source.dec, dir_parent=self.directory, wcs=self.wcs, **{a: getattr(source, a) for a in aux_attr}) for name, source in sources.items()}
 
 		for flt in self.flts:
 			flt.set_fitsources(sources)
@@ -387,26 +404,43 @@ class FLT(object):
 			self.name = roadmap.pop('name', None)
 			self.directory = dir_parent+self.name+'/'
 			self.fp = roadmap.pop('fp', None)
-			# unzip fp
-			if not os.path.isfile(self.fp):
-				unzip_gz(self.fp+'.gz', self.fp)
-			self.wcs = wcs.WCS(fits.getheader(self.fp, ext=1), fits.open(self.fp))
+			self.fp_local = self.directory+'flt.fits'
+			self._set_wcs()
+			# # unzip fp
+			# if not os.path.isfile(self.fp):
+			# 	if os.path.isfile(self.fp+'.gz'):
+			# 		unzip_gz(self.fp+'.gz', self.fp)
+			# self.wcs = wcs.WCS(fits.getheader(self.fp, ext=1), fits.open(self.fp))
 			self.sources = get_dict_FITSources_from_roadmap(roadmap=roadmap.pop('sources', {}), wcs=self.wcs, dir_parent=self.directory)
 		else: 
 			self.name = kwargs.pop('name', None)
 			self.directory = dir_parent+self.name+'/'
 			self.fp = kwargs.pop('fp', None)
-			# unzip fp
-			if not os.path.isfile(self.fp):
-				unzip_gz(self.fp+'.gz', self.fp)
-			self.wcs = wcs.WCS(fits.getheader(self.fp, ext=1), fits.open(self.fp))
+			self.fp_local = self.directory+'flt.fits'
+			self._set_wcs()
+			# # unzip fp
+			# if not os.path.isfile(self.fp):
+			# 	if os.path.isfile(self.fp+'.gz'):
+			# 		unzip_gz(self.fp+'.gz', self.fp)
+			# self.wcs = wcs.WCS(fits.getheader(self.fp, ext=1), fits.open(self.fp))
 			sources = kwargs.pop('sources', {})
 			self.set_fitsources(sources)
 			# self.sources = {name: FITSource(name=name, ra=source.ra, dec=source.dec, wcs=self.wcs, ) for name, source in sources.items()}
 
-		self.fp_local = self.directory+'flt.fits'
 		self.fp_skysub = self.directory+'flt_skysub.fits'
 
+	def _set_wcs(self):
+		""" set wcs using the header of self.fp if it exist, if not try unzip corresponding .gz, if not from self.fp_local. """
+		if os.path.isfile(self.fp):
+			fp_4_wcs = self.fp
+		else: 
+			if os.path.isfile(self.fp+'.gz'):
+				# unzip fp
+				unzip_gz(self.fp+'.gz', self.fp)
+				fp_4_wcs = self.fp
+			else: 
+				fp_4_wcs = self.fp_local
+		self.wcs = wcs.WCS(fits.getheader(fp_4_wcs, ext=1), fits.open(fp_4_wcs))
 
 	def make_flt_skysub(self):
 		"""produce skysubtracted flt file 'flt_skysub.fits'. constant sky of value 'MDRIZSKY' in header is taken out. 
@@ -428,10 +462,14 @@ class FLT(object):
 		""" setting attribute sources from argument and enforcing that x, y are calculated from self.wcs. Auxiliary attributes of sources are also propagated over. 
 		"""
 		# setting list of additional auxiliary attributes from an arbitrary source
-		aux_attr = list(next(iter(sources.values())).__dict__.keys())
-		[aux_attr.remove(key) for key in ['name', 'ra', 'dec']]
+		if len(sources) == 0: 
+			self.sources={}
+		else: 
+			aux_attr = list(next(iter(sources.values())).__dict__.keys())
+			[aux_attr.remove(key) for key in ['name', 'ra', 'dec', 'directory']]
 
-		self.sources = {name: FITSource(name=name, ra=source.ra, dec=source.dec, dir_parent=self.directory, wcs=self.wcs, **{a: getattr(source, a) for a in aux_attr}) for name, source in sources.items()}
+			# self.sources = {name: FITSource(name=name, ra=source.ra, dec=source.dec, dir_parent=self.directory, wcs=self.wcs, ) for name, source in sources.items()}
+			self.sources = {name: FITSource(name=name, ra=source.ra, dec=source.dec, dir_parent=self.directory, wcs=self.wcs, **{a: getattr(source, a) for a in aux_attr}) for name, source in sources.items()}
 
 
 	def copyfile(self):
@@ -500,7 +538,7 @@ class FITSource(Source):
 		super(self.__class__, self).__init__(**kwargs)
 
 		# set origin to 0 to comply with numpy convention
-		x, y = np.round(wcs.all_world2pix(np.array([[self.ra, self.dec]]), 0)[0])
+		x, y = np.round(wcs.all_world2pix(np.array([[self.ra, self.dec]]), 0, maxiter=100)[0])
 		self.x, self.y = int(x), int(y)
 
 

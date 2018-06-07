@@ -21,7 +21,7 @@ from drizzlepac import astrodrizzle as adz
 
 import tinyfit
 
-def funcdrz_aperture_photometry(drz, obs, tar, source='qso', fp_image='drz_crop.fits', radii=([1., 2., 3., 4., ])*u.arcsec): 
+def funcdrz_aperture_photometry_on_crop(drz, obs, tar, source='qso', fp_image='drz_crop.fits', radii=([1., 2., 3., 4., ])*u.arcsec): 
 	""" measure aperture photometry of images
 	"""
 	s = drz.sources[source]
@@ -96,7 +96,7 @@ def funcflt_stealresult(flt, drz, obs, tar, dir_run_from='../run_oldcentriod/', 
 	shutil.copyfile(fp_result_from, fp_result_to)
 
 
-def funcflt_psffit(flt, drz, obs, tar, source='qso', freeparams=['dx', 'dy', 'scale', 'sigma'], params_range={}, neg_penal=1., refocus=False, source_focus='star0'): 
+def funcflt_psffit(flt, drz, obs, tar, source='qso', freeparams=['dx', 'dy', 'scale', 'sigma'], params_range={}, neg_penal=1., refocus=False, source_focus='star0', nx=64, ny=64, pixsize=0.13): 
 	""" fitting psf to source for each flt to produce flt/source/flt_psf.fits
 
 	Note:
@@ -115,13 +115,16 @@ def funcflt_psffit(flt, drz, obs, tar, source='qso', freeparams=['dx', 'dy', 'sc
 		neg_penal=1. (float): factor to penalize negative residuals
 		refocus=false
 		source_focus='star0'
+		nx=64 (int): cutout size in x
+		ny=64 (int): cutout size in y
+		pixsize=0.13 (float): in arcsec
 
 	"""
 
 	# setting
 	diameter = 6
 	focus = 0.
-	subsample = 5
+	subsample = 6
 
 	# run
 	if not os.path.isfile(flt.fp_skysub):
@@ -138,9 +141,9 @@ def funcflt_psffit(flt, drz, obs, tar, source='qso', freeparams=['dx', 'dy', 'sc
 		if not os.path.isdir(dir_psf):
 			os.mkdir(dir_psf)
 
-		tpsf = tinyfit.tinypsf.tinypsf(camera=obs.camera, filter=obs.filter, position=[s.x, s.y], spectrum_form=s.spectrum_form, spectrum_type=s.spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn='psf', dir_out=dir_psf)
+		tpsf = tinyfit.tinypsf.tinypsf(camera=obs.camera, filter=obs.filter, position=[s.x, s.y], spectrum_form=s.spectrum_form, spectrum_type=s.spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn='psf', dir_out=dir_psf, pixsize=pixsize)
 
-		f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=0.13)
+		f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=pixsize, nx=nx, ny=ny)
 		f.set_model(tinypsf=tpsf)
 		f.hyperfit(x=s.x, y=s.y, freeparams=['dx', 'dy', 'scale', 'sigma'], freehyperparams=['focus'])
 		# write outputs
@@ -151,7 +154,7 @@ def funcflt_psffit(flt, drz, obs, tar, source='qso', freeparams=['dx', 'dy', 'sc
 		focus_bestfit = f.result.hyperparams.focus
 	else: 
 		# get focus
-		f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=0.13)
+		f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=pixsize, nx=nx, ny=ny)
 		f.result.load(flt.sources[source_focus].directory+'result.json')
 		focus_bestfit = f.result.hyperparams.focus
 
@@ -164,9 +167,9 @@ def funcflt_psffit(flt, drz, obs, tar, source='qso', freeparams=['dx', 'dy', 'sc
 	if not os.path.isdir(dir_psf):
 		os.mkdir(dir_psf)
 
-	tpsf = tinyfit.tinypsf.tinypsf(camera=obs.camera, filter=obs.filter, position=[s.x, s.y], spectrum_form=s.spectrum_form, spectrum_type=s.spectrum_type, diameter=diameter, focus=focus_bestfit, subsample=subsample, fn='psf', dir_out=dir_psf)
+	tpsf = tinyfit.tinypsf.tinypsf(camera=obs.camera, filter=obs.filter, position=[s.x, s.y], spectrum_form=s.spectrum_form, spectrum_type=s.spectrum_type, diameter=diameter, focus=focus_bestfit, subsample=subsample, fn='psf', dir_out=dir_psf, pixsize=pixsize)
 
-	f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=0.13)
+	f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=pixsize, nx=nx, ny=ny)
 	f.set_model(tinypsf=tpsf)
 	tpsf.write_params(s.directory+'tiny_params.json')
 	f.fit(x=s.x, y=s.y, freeparams=freeparams, params_range=params_range, neg_penal=neg_penal)
@@ -181,7 +184,7 @@ def funcflt_psffit(flt, drz, obs, tar, source='qso', freeparams=['dx', 'dy', 'sc
 	hdus_bestfit.writeto(s.directory+'flt_psf.fits', overwrite=True)
 
 
-def funcdrz_psfsub(drz, obs, tar, source='qso'):
+def funcdrz_psfsub(drz, obs, tar, source='qso', nx=64, ny=64, pixsize=0.13, final_pixfrac=1., fn_final_refimage='drz.fits'):
 	""" astrodrizzle flt_psf_{source}.fits to produce drz_psf_{source}.fits and subtract it from drz.fits to get drz_psfsub_source.fits. Crop drz.fits and drz_psfsub_{source}.fits to get drz_crop{source}.fits and drz_psfsub_{source}_crop{source}.fits
 
 	Args:
@@ -191,6 +194,10 @@ def funcdrz_psfsub(drz, obs, tar, source='qso'):
 		tar
 		# user arguments:
 		source='qso'
+		nx=64 (int): cutout size in x
+		ny=64 (int): cutout size in y
+		pixsize=0.13 (float): in arcsec
+		final_pixfrac=1. (float): drizzle drop size
 	"""
 	s = drz.sources[source]
 	if not os.path.isdir(s.directory):
@@ -200,7 +207,7 @@ def funcdrz_psfsub(drz, obs, tar, source='qso'):
 	drz.fp_psfsub = s.directory+'drz_psfsub.fits'
 	fp_flt_psfs = [flt.sources[source].directory+'flt_psf.fits' for flt in drz.flts]
 
-	adz.AstroDrizzle(input=fp_flt_psfs, output=drz.fp_psf, static=False, build=True, skysub=False, driz_cr=False, preserve=False, runfile=drz.directory+'astrodrizzle.log')
+	adz.AstroDrizzle(input=fp_flt_psfs, output=drz.fp_psf, static=False, build=True, skysub=False, driz_cr=False, preserve=False, runfile=drz.directory+'astrodrizzle_psfsub.log', final_pixfrac=final_pixfrac, final_refimage=drz.directory+fn_final_refimage)
 
 	# PSF subtraction
 	hdus = fits.open(drz.fp_local)
@@ -212,13 +219,18 @@ def funcdrz_psfsub(drz, obs, tar, source='qso'):
 	hdus.writeto(drz.fp_psfsub, overwrite=True)
 
 	# crop cutouts
-	f = tinyfit.imgfitter.imgfitter(filename=drz.directory+'drz.fits', pixsize=0.13)
+	f = tinyfit.imgfitter.imgfitter(filename=drz.directory+'drz.fits', nx=nx, ny=ny, pixsize=pixsize)
 	f._crop(xc=s.x, yc=s.y)
 	f.img_crop.writeto(s.directory+'drz_crop.fits')
 
-	f_psub = tinyfit.imgfitter.imgfitter(filename=drz.fp_psfsub, pixsize=0.13)
+	f_psub = tinyfit.imgfitter.imgfitter(filename=drz.fp_psfsub, nx=nx, ny=ny, pixsize=pixsize)
 	f_psub._crop(xc=s.x, yc=s.y)
 	f_psub.img_crop.writeto(s.directory+'drz_psfsub_crop.fits')
+
+	f_psf = tinyfit.imgfitter.imgfitter(filename=drz.fp_psf, nx=nx, ny=ny, pixsize=pixsize)
+	f_psf._crop(xc=s.x, yc=s.y)
+	f_psf.img_crop.writeto(s.directory+'drz_psf_crop.fits')
+
 
 
 def funcdrz_plot(drz, obs, tar, source='qso'):

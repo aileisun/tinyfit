@@ -161,3 +161,20 @@ def test_batch_compile_drz():
 	assert dfnumber_read.loc[0, 'target'] == 'SDSSJ0832+1615'
 	assert dfnumber_read.loc[0, 'drz'] == 'drz0'
 	assert dfnumber_read.loc[0, 'source'] == 'qso'
+
+
+def test_batch_merge_drz():
+
+	b = Batch(dir_data+'roadmap_two_drzs.json', directory=dir_testing)
+	assert len(b.targets[0].observations[0].drzs) == 2
+	assert len(b.targets[0].observations[0].drzs[0].flts) == 4
+	assert len(b.targets[0].observations[0].drzs[1].flts) == 2
+
+	b.merge_drzs()
+	assert len(b.targets[0].observations[0].drzs) == 1
+	drz_master = b.targets[0].observations[0].drzs[0]
+	assert len(drz_master.flts) == 6
+	assert drz_master.name == 'drz_master'
+	for i in range(len(drz_master.flts)):
+		drz_master.flts[i].directory = drz_master.directory+'flt{}/'.format(str(i))
+

@@ -10,6 +10,11 @@ import copy
 from collections import namedtuple
 import json
 from astropy.io import fits
+import photutils as pu
+from astropy import modeling as am
+from astropy import convolution as ac
+
+
 
 from ..imgobj import imgobj
 from ..tinypsf import tinypsf
@@ -41,8 +46,10 @@ class _resultobj():
 	def __init__(self):
 		self.chisq = None
 		self.success = False
+		self.isgal = False
 		self.ishyper = False
 		self.params = None
+		self.galparams = None
 		self.hyperparams = None
 
 	def load(self, filename):
@@ -55,11 +62,15 @@ class _resultobj():
 
 		self.chisq = result_dict['chisq']
 		self.success = result_dict['success']
+		self.isgal = result_dict['isgal']
 		self.ishyper = result_dict['ishyper']
 
 		keys = list(result_dict['params'].keys())
 		values = [result_dict['params'][key] for key in keys]
 		self._set_params(params=values, names=keys)
+		keys = list(result_dict['galparams'].keys())
+		values = [result_dict['galparams'][key] for key in keys]
+		self._set_galparams(params=values, names=keys)
 		keys = list(result_dict['hyperparams'].keys())
 		values = [result_dict['hyperparams'][key] for key in keys]
 		self._set_hyperparams(params=values, names=keys)
@@ -71,11 +82,16 @@ class _resultobj():
 			filename ('str')
 		"""
 		result_dict = {'params': dict(self.params._asdict()),
-						'hyperparams': dict(self.hyperparams._asdict()),
 						'chisq': float(self.chisq), 
 						'success': self.success,
+						'isgal': self.isgal,
 						'ishyper': self.ishyper,
 						}
+		if self.galparams is not None:
+			result_dict.update({'galparams': dict(self.galparams._asdict()),})
+		if self.hyperparams is not None: 
+			result_dict.update({'hyperparams': dict(self.hyperparams._asdict()),})
+
 		with open(filename, 'w') as file:
 			json.dump(result_dict, file, indent=4)
 
@@ -88,6 +104,18 @@ class _resultobj():
 		"""
 		Params = namedtuple('Params', names)
 		self.params = Params(*params)
+
+
+	def _set_galparams(self, params, names):
+		"""
+		Attr: 
+			params (:obj: 'np.ndarray')
+			names (:obj: 'list')
+		"""
+		Params = namedtuple('Params', names)
+		self.galparams = Params(*params)
+		self.isgal = True
+
 
 	def _set_hyperparams(self, params, names):
 		"""
@@ -107,7 +135,16 @@ class _resultobj():
 			names (:obj: 'list' of 'str')
 		"""
 		params = _ensure_1d_array(optimizeresult.x)
-		self._set_params(params=params, names=names)
+		self._set_params(params=params[:len(names)], names=names)
+		self.chisq = optimizeresult.fun
+		self.success = optimizeresult.success
+
+
+	def _set_galparams_from_OptimizeResult(self, optimizeresult, names, nskip=0):
+		""" set attributes self.galparams based on the OptimizeResult input. The first 'nskip' params are ignored as they should belong to params, not galparams. 
+		"""
+		params = _ensure_1d_array(optimizeresult.x)
+		self._set_galparams(params=params[nskip:], names=names)
 		self.chisq = optimizeresult.fun
 		self.success = optimizeresult.success
 
@@ -165,8 +202,12 @@ def _calc_chisq(imgdata, modeldata, params_dict={}, params_range={}, model_maxli
 
 	# if param goes out of range then return a large number
 	for key, rnge in params_range.items():
-		if (params_dict[key] < rnge[0]) | (params_dict[key] > rnge[1]):
-			return nlarge
+		if (rnge[0] is not None):
+			if (params_dict[key] < rnge[0]):
+				return nlarge
+		if (rnge[1] is not None):
+			if (params_dict[key] > rnge[1]):
+				return nlarge
 
 	# if model maximum goes beyond limit then return a large number
 	if modeldata.max() > maxlim:
@@ -313,7 +354,16 @@ class imgfitter(object):
 			self.model_init = self.hypermodel_init.psf
 
 
-	def fit(self, x, y, freeparams=['dx', 'dy', 'scale'], params_range={}, charge_diffusion=True, model_maxlim=np.inf, neg_penal=1.):
+	def set_galmodel(self, galmodel):
+		""" set galaxy model
+
+		Args:
+			galmodel (:obj: 'astropy.modeling.models')
+		"""
+		self.galmodel = galmodel
+
+
+	def fit(self, x, y, freeparams=['dx', 'dy', 'scale', 'background'], params_range={}, charge_diffusion=True, model_maxlim=np.inf, neg_penal=1., fitgal=False, galconvpsf=False, padbackground=True):
 		""" Fit the model to the image at the specified location and image size. 
 
 		Example:
@@ -322,16 +372,27 @@ class imgfitter(object):
 		Args: 
 			x (int): x coordinate of the center of the cropped image
 			y (int): y coordinate of the center of the cropped image
-			freeparams=['dx', 'dy', 'scale'] (:obj: 'list' of 'str'): 
-				List of free params to fit. Could be subset of ['dx', 'dy', 'scale', 'sigma']. 'dx' 'dy' are for translation; 'scale' is multiplied to pix values; 'sigma' is width of Gaussian smoothing. By default no smoothing is used. 
+			freeparams=['dx', 'dy', 'scale', 'background'] (:obj: 'list' of 'str'): 
+				List of free params to fit. Could be subset of: 
+					['dx', 'dy', 'scale', 'background', 'sigma']. 
+				'dx', 'dy': translation; 
+				'scale': multiplied to pix values; 
+				'background': constant level of background
+				'sigma': width of Gaussian smoothing. By default no smoothing is fitted. 
 			params_range={} (:obj: 'dictionary' of 'tuple')
-				the range the free parameter can take, for example: {'dx': (-1., 1.), 'dy': (-2., 2.), }. Default: no range. 
+				the range the free parameter can take, for example: {'dx': (-1., 1.), 'dy': (-2., 2.), }. Default: no range. If fitgal then galaxy model params can also be set via params_range. Alternatively, it can be specified as the bounds attribute of the astropy model. 
 			charge_diffusion = True (int): 
 				If true then apply charge diffusion to model if required. 
 			model_maxlim = np.inf (float or str):
 				Limits to the maximum value of the model image. Default: inf. Can be set to a number. If set to 'data', then it's determined from the max of data cropped image 
 			neg_penal = 1. (float):
 				Penalizing factor of the negative residuals in the chisq calculation. If set to larger than 1 then negative residuals are penalized relative to positive residuals. 
+			fitgal = False (bool):
+				If True, fit galaxy model simultaneously. The model is set by self.set_galmodel() as astropy.modeling.models. 
+			galconvpsf=False (bool): 
+				If true, the galaxy model is convolved with the PSF. 
+			padbackground=True (bool):
+				If true, the best fit uncropped image will be padded with bestfit background value. 
 
 		Return:
 	        bool: The return value. True for success, False otherwise.
@@ -340,6 +401,8 @@ class imgfitter(object):
 			The image is first cropped at location [y, x] with sizes [ny, nx]. The model is regridded to match that of the cropped image. 
 
 			By default, charge diffusion will be applied if required. 
+
+			galconvpsf will significantly increase run time. It is implemented by convolving the galaxy model by a Gaussian kernel that best fits the PSF. 
 		"""
 		# sanity check
 		if self.model_init is None:
@@ -351,22 +414,174 @@ class imgfitter(object):
 		# cropping
 		self._crop(xc=x, yc=y)
 
+		# galmodel
+		if fitgal:
+			galmodel = self.galmodel
+		else: 
+			galmodel = None
+
 		# fitting shift and scale
-		res_xys = self._fitloop_xys(image = self.img_crop, model=self.model_init, freeparams=freeparams, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
+		res_xys = self._fitloop_xys(image=self.img_crop, psfmodel=self.model_init, psffreeparams=freeparams, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal, galmodel=galmodel, galconvpsf=galconvpsf)
 
 		if res_xys.success:
 
 			self.result._set_params_from_OptimizeResult(res_xys, names=freeparams)
+			if fitgal: 
+				self.result._set_galparams_from_OptimizeResult(res_xys, names=galmodel.param_names, nskip=len(freeparams))
+				self.result.isgal = True
 			self.result._set_hyperparams(params=[], names=[])
 			self.result.ishyper = False
 
 			self.img_crop_bestfit = self.get_img_crop_bestfit()
 			self.img_crop_residual = self.get_img_crop_residual(bestfit=self.img_crop_bestfit)
-			self.img_bestfit = self._uncrop(self.img_crop_bestfit)
+			self.img_bestfit = self._uncrop(self.img_crop_bestfit, padbackground=padbackground)
 
 			return True
 		else: 
 			return False
+
+
+	def _fitloop_xys(self, image, psfmodel, psffreeparams=['dx', 'dy', 'scale', 'background'], params_range={}, model_maxlim=np.inf, neg_penal=1., galmodel=None, galconvpsf=False):
+		""" loop for fitting psfmodel to image with free params x, y, scale 
+
+		Args:
+			image (:obj: imgobj)
+			psfmodel (:obj: imgobj)
+			psffreeparams=['dx', 'dy', 'scale', 'background'] (:obj: 'list' of 'str'): 
+				List of free params to fit. Could be subset of: 
+					['dx', 'dy', 'scale', 'background', 'sigma']. 
+				'dx', 'dy': translation; 
+				'scale': multiplied to pix values; 
+				'background': constant level of background
+				'sigma': width of Gaussian smoothing. By default no smoothing is fitted. 
+			params_range={} (:obj: 'dictionary' of 'tuple')
+				the range the free parameter can take, for example: {'dx': (-1., 1.), 'dy': (-2., 2.), }. Default: no range. If fitgal then galaxy model params can also be set via params_range. Alternatively, it can be specified as the bounds attribute of the astropy model. 
+			model_maxlim = np.inf (float or str):
+				Limits to the maximum value of the psfmodel image. Default: inf. Can be set to a number. If set to 'data', then it's determined from the max of data cropped image 
+			neg_penal = 1. (float):
+				Penalizing factor of the negative residuals in the chisq calculation. If set to larger than 1 then negative residuals are penalized relative to positive residuals. 
+			galmodel=None (:obj: 'astropy.modeling.model'):
+				galaxy model to be fitted simultaneously. All of it's parameters as specified by galmodel.param_names will be used as free parameters. 
+			galconvpsf=False (bool): 
+				If true, the galaxy model is convolved with the PSF. 
+
+		return: 
+			(:obj: scipy minimization result)
+		"""
+
+		def _chisq_xys(p, image, psfmodel, psffreeparams, params_range, model_maxlim=np.inf, neg_penal=1., galmodel=None, galconvpsf=False):
+			""" calculate chisq. Return inf if psfmodel max is larter than model_maxlim. """
+			# organize params and params_range
+			psfparams_dict = dict(zip(psffreeparams, p[0:len(psffreeparams)]))
+			if galmodel is not None:
+				params_dict = dict(zip(psffreeparams+list(galmodel.param_names), p))
+			else: 
+				params_dict = psfparams_dict
+
+			# transform psf
+			psfmodel_new = self._get_shifted_scaled_smoothed_resampled_model(psfmodel, **psfparams_dict)
+			assert psfmodel_new.pixsize == image.pixsize
+
+			# valuate galaxy model
+			if galmodel is None: 
+				modeldata = psfmodel_new.data
+			else: 
+				galmodel.parameters = np.array(p[len(psffreeparams):])
+				params_range.update(galmodel.bounds)
+				if galconvpsf: # convolve the 2d gaussian bestfit to psf
+					gaussmodel = self._get_bestfit_gaussian_model(psfmodel_new.data)
+					galmodel_conv = ac.convolve_models(galmodel, gaussmodel, normalize_kernel=True)
+					galdata = self._evaluate_model(galmodel_conv)
+				else: 
+					galdata = self._evaluate_model(galmodel)
+
+				modeldata = psfmodel_new.data+galdata
+			chisq = _calc_chisq(imgdata=image.data, modeldata=modeldata, params_dict=params_dict, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
+			# return chisq
+			print(chisq)
+			return chisq
+
+		# set init
+		init_dictionary = {'dx': 0.1, 'dy': 0.1, 
+							'scale': image.data.max()/psfmodel.data.max(), 
+							'sigma': 0.1, 'background': 0.}
+
+		# reset init according to parmas_range
+		for key, rnge in params_range.items():
+			if key in psffreeparams:
+				if (init_dictionary[key] < rnge[0]) | (init_dictionary[key] > rnge[1]):
+					init_dictionary[key] = (rnge[0] + rnge[1])/2
+
+		# the first len(freeparam) numbers are for psfmodel, the rest are for galmodel. 
+		p_init = [init_dictionary[freeparam] for freeparam in psffreeparams]
+		if galmodel is not None:
+			p_init += list(galmodel.parameters)
+
+		# run
+		minresult = so.minimize(_chisq_xys, x0=p_init, args=(image, psfmodel, psffreeparams, params_range, model_maxlim, neg_penal, galmodel, galconvpsf), method='Powell')
+
+		if 'sigma' in psffreeparams:
+			isigma = np.where('sigma' == np.array(psffreeparams))[0][0]
+			minresult.x[isigma] = np.absolute(minresult.x[isigma])
+
+		return minresult
+
+
+	def _get_bestfit_gaussian_image(self, data):
+		""" return imgobj of the best fit gaussian to data """
+		gaussmodel = self._get_bestfit_gaussian_model(data)
+		y, x = self._yxmesh()
+		return imgobj(data=gaussmodel(y, x), pixsize=self.img.pixsize)
+
+
+	def _get_bestfit_gaussian_model(self, data):
+		""" return the best fit gaussian model to the cropped image data 
+
+		Note: 
+			model in on meshgrid define by self_yxmesh()
+
+		Args: 
+			data (2d np array): of size of cropped image
+
+		Return 
+			(:obj: astropy model)
+		"""
+		gaussmodel = am.models.Gaussian2D(amplitude=data.max(), x_mean=0.01, y_mean=0.01, x_stddev=2., y_stddev=2., theta=0.)
+		gaussmodel.bounds['amplitude'] = (0., None)
+		gaussmodel.bounds['x_stddev'] = (0.5, None)
+		gaussmodel.bounds['y_stddev'] = (0.5, None)
+
+		y, x = self._yxmesh()
+		fitter = am.fitting.LevMarLSQFitter()
+		gaussmodel = fitter(gaussmodel, y, x, data)
+		return gaussmodel
+
+
+	# def _get_bestfit_gaussian_model(self, data):
+	# 	""" return the best fit gaussian model to the cropped image data 
+
+	# 	Note: 
+	# 		model in on meshgrid define by self_yxmesh()
+
+	# 	Args: 
+	# 		data (2d np array): of size of cropped image
+
+	# 	Return 
+	# 		(:obj: astropy model)
+	# 	"""
+	# 	def gauss_chi2(p, data, modl, epsilon=1.e-2): 
+	# 		if (p[0]>0.) & (p[3]>epsilon) & (p[4]>epsilon):
+	# 			modl.paramsters = p
+	# 			return np.sum((data - modl(y, x))**2)
+	# 		else: 
+	# 			return 1.e10
+
+	# 	gaussmodel = am.models.Gaussian2D(amplitude=1., x_mean=0.01, y_mean=0.01, x_stddev=2., y_stddev=2., theta=0.)
+
+	# 	y, x = self._yxmesh()
+	# 	res = so.minimize(gauss_chi2, x0=gaussmodel.parameters, args=(data, gaussmodel), method='Powell')
+	# 	gaussmodel.parameters = res.x
+	# 	return gaussmodel
 
 
 	def hyperfit(self, x, y, freeparams=['dx', 'dy', 'scale'], freehyperparams=[], params_range={}, charge_diffusion=True, model_maxlim=np.inf, neg_penal=1.):
@@ -428,94 +643,6 @@ class imgfitter(object):
 			return False
 
 
-	def get_hdus_bestfit(self):
-		"""
-		Return the hdus that is taken from the input file but with science image replaced by the bestfit. 
-		"""
-		img_bestfit = self._uncrop(self.get_img_crop_bestfit())
-		hdus = fits.open(self.img.filename)
-		hdus[1].data = img_bestfit.data
-		hdus[0].header['HISTORY'] = 'TINYFIT: SCI IMAGE REPLACED BY BESTFIT PSF'
-		hdus[1].header['HISTORY'] = 'TINYFIT: IMAGE REPLACED BY BESTFIT PSF'
-		return hdus
-
-
-	def get_img_crop_bestfit(self):
-		""" Return the imgobj of the current model corresponding to the params in self.result. 
-		"""
-		if self.result.ishyper:
-			model = _make_model_with_new_hyperparam(params_dict=self.result.hyperparams._asdict(), hypermodel_init=self.hypermodel_init)
-		else: 
-			model = self.model_init
-
-		model_xyss = self._get_shifted_scaled_smoothed_resampled_model(model, **self.result.params._asdict())
-
-		return model_xyss
-
-
-	def get_img_crop_residual(self, bestfit=None):
-		""" Return the imgobj of the cropped image minus the current bestfit model 
-		Args: 
-			bestfit (:obj: 'imgobj', optional)
-		"""
-		if bestfit is None:
-			bestfit = self.get_img_crop_bestfit()
-		assert bestfit.pixsize == self.img_crop.pixsize
-		residual_data = self.img_crop.data - bestfit.data
-		return imgobj(data=residual_data, pixsize=self.img_crop.pixsize)
-
-
-	def _fitloop_xys(self, image, model, freeparams=['dx', 'dy', 'scale'], params_range={}, model_maxlim=np.inf, neg_penal=1.):
-		""" loop for fitting model to image with free params x, y, scale 
-
-		Args:
-			image (:obj: imgobj)
-			model (:obj: imgobj)
-			freeparams=['dx', 'dy', 'scale'] (:obj: 'list' of 'str'): 
-				List of free params to fit. Could be subset of ['dx', 'dy', 'scale', 'sigma']. 'dx' 'dy' are for translation; 'scale' is multiplied to pix values; 'sigma' is width of Gaussian smoothing. By default no smoothing is fitted. 
-			params_range={} (:obj: 'dictionary' of 'tuple')
-				the range the free parameter can take, for example: {'dx': (-1., 1.), 'dy': (-2., 2.), }. Default: no range. 
-			model_maxlim = np.inf (float or str):
-				Limits to the maximum value of the model image. Default: inf. Can be set to a number. If set to 'data', then it's determined from the max of data cropped image 
-			neg_penal = 1. (float):
-				Penalizing factor of the negative residuals in the chisq calculation. If set to larger than 1 then negative residuals are penalized relative to positive residuals. 
-
-		return: 
-			(:obj: scipy minimization result)
-		"""
-
-		def _chisq_xys(p, freeparams, image, model, params_range, model_maxlim=np.inf, neg_penal=1.):
-			""" calculate chisq. Return inf if model max is larter than model_maxlim. """
-			params_dict = dict(zip(freeparams, p))
-			model_new = self._get_shifted_scaled_smoothed_resampled_model(model, **params_dict)
-			assert model_new.pixsize == image.pixsize
-
-			return _calc_chisq(imgdata=image.data, modeldata=model_new.data, params_dict=params_dict, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
-
-		# set init
-		init_dictionary = {'dx': 0.1, 'dy': 0.1, 
-							'scale': image.data.max()/model.data.max(), 
-							'sigma': 0.1}
-
-		# reset init according to parmas_range
-		for key, rnge in params_range.items():
-			if (init_dictionary[key] < rnge[0]) | (init_dictionary[key] > rnge[1]):
-				init_dictionary[key] = (rnge[0] + rnge[1])/2
-
-		p_init = [init_dictionary[freeparam] for freeparam in freeparams]
-
-		# run
-		minresult = so.minimize(_chisq_xys, x0=p_init, args=(freeparams, image, model, params_range, model_maxlim, neg_penal), method='Powell')
-
-
-		if 'sigma' in freeparams:
-			isigma = np.where('sigma' == np.array(freeparams))[0][0]
-			minresult.x[isigma] = np.absolute(minresult.x[isigma])
-
-		return minresult
-
-
-
 	def _fitloop_hyperparam(self, image, hypermodel_init, freeparams, freehyperparams, params_range={}, model_maxlim=np.inf, neg_penal=1.):
 		""" fitting hypermodel to image with free hyperparams
 
@@ -538,7 +665,7 @@ class imgfitter(object):
 			hyperparams_dict = dict(zip(freehyperparams, p))
 			model_new = _make_model_with_new_hyperparam(hyperparams_dict, hypermodel_init)
 
-			res_xys = self._fitloop_xys(image, model_new, freeparams=freeparams, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
+			res_xys = self._fitloop_xys(image, model_new, psffreeparams=freeparams, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
 			params_dict = dict(zip(freeparams, res_xys.x))
 			model_xyss = self._get_shifted_scaled_smoothed_resampled_model(model_new, **params_dict)
@@ -553,9 +680,89 @@ class imgfitter(object):
 		# pick up xys of the bestfit hyperfit
 		params_dict = dict(zip(freehyperparams, _ensure_1d_array(res_hyper.x)))
 		model_new = _make_model_with_new_hyperparam(params_dict, hypermodel_init)
-		res_xys = self._fitloop_xys(image, model_new, freeparams=freeparams, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
+		res_xys = self._fitloop_xys(image, model_new, psffreeparams=freeparams, params_range=params_range, model_maxlim=model_maxlim, neg_penal=neg_penal)
 
 		return res_hyper, res_xys
+
+
+	def get_hdus_bestfit(self):
+		"""
+		Return the hdus that is taken from the input file but with science image replaced by the bestfit. 
+		"""
+		img_bestfit = self._uncrop(self.get_img_crop_bestfit())
+		hdus = fits.open(self.img.filename)
+		hdus[1].data = img_bestfit.data
+		hdus[0].header['HISTORY'] = 'TINYFIT: SCI IMAGE REPLACED BY BESTFIT PSF'
+		hdus[1].header['HISTORY'] = 'TINYFIT: IMAGE REPLACED BY BESTFIT PSF'
+		return hdus
+
+
+	def get_img_crop_galbestfit(self):
+		""" return the imgobj of the current bestfit galaxy model """
+		self.galmodel.parameters = np.array(list(self.result.galparams))
+		galdata = self._evaluate_model(self.galmodel)
+		return imgobj(data=galdata, pixsize=self.img_crop.pixsize)
+
+
+	def get_img_crop_psfbestfit(self):
+		""" return the imgobj of the current bestfit psf model """
+		if self.result.ishyper:
+			model = _make_model_with_new_hyperparam(params_dict=self.result.hyperparams._asdict(), hypermodel_init=self.hypermodel_init)
+		else: 
+			model = self.model_init
+
+		model_xyss = self._get_shifted_scaled_smoothed_resampled_model(model, **self.result.params._asdict())
+		return model_xyss
+
+
+	def get_img_crop_bestfit(self):
+		""" Return the imgobj of the current model corresponding to the params in self.result. 
+		"""
+		model_psf = self.get_img_crop_psfbestfit()
+
+		if self.result.isgal:
+			galdata = self.get_img_crop_galbestfit().data
+			model_psf.data += galdata
+
+		return model_psf
+
+
+	def get_img_crop_residual(self, bestfit=None):
+		""" Return the imgobj of the cropped image minus the current bestfit model 
+		Args: 
+			bestfit (:obj: 'imgobj', optional)
+		"""
+		if bestfit is None:
+			bestfit = self.get_img_crop_bestfit()
+		assert bestfit.pixsize == self.img_crop.pixsize
+		residual_data = self.img_crop.data - bestfit.data
+		return imgobj(data=residual_data, pixsize=self.img_crop.pixsize)
+
+
+	def find_cropcentroid(self, imgcoord=False, update=False):
+		"""
+		return centroid coordinate of cropped image in cropped image coordinate (xc_crop, yc_crop). 
+
+		Args: 
+			imgcoord (bool): if True, return in image coordinate (x, y) instead. 
+			update (bool): if True, creating new crop based on the new coordinate. 
+
+		Return 
+			(float, float): image coordinate (x, y). 
+		"""
+		xc_crop_new, yc_crop_new = pu.centroid_1dg(self.img_crop.data)
+
+		if not imgcoord:
+			result =  xc_crop_new, yc_crop_new
+		else: 
+			result = self._cropxy_to_xy(xc_crop_new, yc_crop_new)
+
+		if update:
+			xc, yc = np.round(self._cropxy_to_xy(xc_crop_new, yc_crop_new)).astype(int)
+			self._crop(xc, yc)
+
+		return result
+
 
 
 	def _crop(self, xc, yc):
@@ -596,7 +803,7 @@ class imgfitter(object):
 		self.img_crop = imgobj(data=data_crop, pixsize=self.img.pixsize)
 
 
-	def _uncrop(self, img_crop, xc=None, yc=None):
+	def _uncrop(self, img_crop, xc=None, yc=None, padbackground=False):
 		"""
 		Return an uncropped image from a cropped image. The uncovered pixels are set to zero. 
 
@@ -604,6 +811,8 @@ class imgfitter(object):
 			img_crop (:obj:'imgobj'): imgobj object to be uncropped
 			xc (int, optional): x center of the cropped image. Default self._cropxc.
 			yc (int, optional): y center of the cropped image. Default self._cropxc.
+			padbackground (bool): 
+				If True, pad the uncovered pixels with bestfit background. 
 
 		Return:			
 			(:obj:'imgobj'): uncropped image of the same size as self.img
@@ -613,6 +822,14 @@ class imgfitter(object):
 		if yc is None:
 			yc = self._cropyc
 
+		if padbackground:
+			if hasattr(self.result.params, 'background'): 
+				offset = self.result.params.background
+			else: 
+				offset = 0. 
+		else: 
+			offset = 0. 
+
 		# check that the centroid of the cropped image is within self.img
 		if not _pointxy_is_in_img(xc, yc, self.img): 
 			raise Exception("cropping location outside image ")
@@ -621,11 +838,11 @@ class imgfitter(object):
 
 		if _pointxy_is_in_img(x0, y0, self.img) & _pointxy_is_in_img(x1, y1, self.img):
 			# padding not required
-			data_uncrop = np.zeros(self.img.data.shape)
+			data_uncrop = np.zeros(self.img.data.shape)+offset
 			data_uncrop[y0:y1, x0:x1] = img_crop.data
 		else: 
 			# padding required
-			data_uncrop = np.zeros(np.array(self.img.data.shape)+np.array([self.ny*2, self.nx*2]))
+			data_uncrop = np.zeros(np.array(self.img.data.shape)+np.array([self.ny*2, self.nx*2]))+offset
 			data_uncrop[y0+self.ny: y1+self.ny, x0+self.nx: x1+self.nx] = img_crop.data
 			data_uncrop = data_uncrop[self.ny:-self.ny, self.nx: -self.nx]
 
@@ -652,7 +869,6 @@ class imgfitter(object):
 		return x_img, y_img
 
 
-
 	def _xy_to_cropxy(self, x, y):
 		"""Translate x, y coordinate in the cropped image to that of the original image. 
 
@@ -669,11 +885,34 @@ class imgfitter(object):
 
 		return x_crop, y_crop
 
-	def _get_shifted_scaled_smoothed_resampled_model(self, model, dx=0., dy=0., scale=1., sigma=0.):
+
+	# def _evaluate_galmodel(self):
+	# 	""" evaluate self.galmodel on the grid of cropped image and return image data """
+	# 	if self.galmodel is None: 
+	# 		raise Exception("galaxy model not set")
+
+	# 	x, y = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
+	# 	return self.galmodel(x, y)
+
+
+	def _evaluate_model(self, model):
+		""" evaluate self.galmodel on the grid of cropped image and return image data """
+		if self.galmodel is None: 
+			raise Exception("galaxy model not set")
+
+		y, x = np.meshgrid(np.arange(-self.ny//2, self.ny//2), np.arange(-self.nx//2, self.nx//2))
+		return model(y, x)
+
+	def _yxmesh(self):
+		""" return y, x for meshgrid """
+		y, x = np.meshgrid(np.arange(-self.ny//2, self.ny//2), np.arange(-self.nx//2, self.nx//2))
+		return y, x
+
+	def _get_shifted_scaled_smoothed_resampled_model(self, model, dx=0., dy=0., scale=1., background=0., sigma=0.):
 		""" Shift, scale, smooth, and resample model to img_crop grids according to params. 
 		"""
-		if (dx!=0.) | (dy!=0.) | (scale!=1.):
-			model_new = self._get_shifted_scaled_resampled_model(model, dx, dy, scale)
+		if (dx!=0.) | (dy!=0.) | (scale!=1.) | (background!=0.):
+			model_new = self._get_shifted_scaled_resampled_model(model, dx, dy, scale, background)
 		else: 
 			model_new = copy.copy(model)
 
@@ -684,7 +923,7 @@ class imgfitter(object):
 		return model_new
 
 
-	def _get_shifted_scaled_resampled_model(self, model, dx, dy, scale, ):
+	def _get_shifted_scaled_resampled_model(self, model, dx, dy, scale, background):
 		"""
 		Shift and resample the input model to produce a output that has the same pixsize as the self.img and have dimensions [ny, nx]. 
 
@@ -696,6 +935,8 @@ class imgfitter(object):
 				the shift of model in x direction in units of original image pixel. 
 			scale (float):
 				the scaling parameter to be multiplied to the model. 
+			background (float):
+				a constant to be added to the background. 
 
 		Return:
 			:obj:'imgobj': imgobj object of the resampled model. 
@@ -731,6 +972,7 @@ class imgfitter(object):
 		else: 
 			data_final = data_resamp
 
+		data_final += background
 		# return
 		model_final = imgobj(data=data_final, pixsize=self.img.pixsize)
 

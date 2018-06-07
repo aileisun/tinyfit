@@ -39,13 +39,14 @@ class tinypsf(object):
 		spectrum_type
 		focus
 		subsample
+		pixsize
 
 	Methods:
 		make_psf()
 		get_psf()
 
 	"""
-	def __init__(self, camera='wfc3_ir', detector=0, filter='f160w', position=[500, 500], spectrum_form='stellar', spectrum_type='f8v', diameter=5, focus=0., subsample=1, dir_out='./', fn='psf_temporary', ): 
+	def __init__(self, camera='wfc3_ir', detector=0, filter='f160w', position=[500, 500], spectrum_form='stellar', spectrum_type='f8v', diameter=5, focus=0., subsample=1, dir_out='./', fn='psf_temporary', pixsize=0.13): 
 		"""initiate psf 
 		Params:
 			camera = 'wfc3_ir' (str)
@@ -69,6 +70,7 @@ class tinypsf(object):
 			dir_out = './' (str)
 			fn = 'psf_temporary' (str)
 				Rootname fn for the produced file with no extension. The output psf is dir_out+fn+'.fits'
+			pixsize=0.13 (float): pixel size on flt before sub-sampling
 		"""
 
 		# tiny params
@@ -81,6 +83,7 @@ class tinypsf(object):
 		self.diameter = diameter
 		self.focus = focus
 		self.subsample = subsample
+		self.pixsize = pixsize
 
 		# filename
 		self._set_filename(dir_out=dir_out, fn=fn, )
@@ -203,7 +206,8 @@ class tinypsf(object):
 		hdus = fits.open(self.fp_psf)
 		data = hdus[0].data
 		header = hdus[0].header
-		pixsize = header['PIXSCALE']
+		# pixsize = header['PIXSCALE']
+		pixsize = self.pixsize/self.subsample
 
 		self.psf = imgobj(data=data, pixsize=pixsize)
 		self.psf.subsample=self.subsample

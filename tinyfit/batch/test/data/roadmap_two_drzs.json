@@ -1,0 +1,141 @@
+[
+	{
+		"name": "SDSSJ1001+4151",
+		"ra": 150.391029,
+		"dec": 41.8522280222, 
+		"reference": "strauss",
+		"sources": { 
+			"qso":{
+				"ra": 150.391029,
+				"dec": 41.8522280222,
+				"spectrum_form": "powerlaw_nu",
+				"spectrum_type": -1.32462234501
+			} 
+		},
+		"observations": [ 
+			{
+				"name": "obs0",
+				"camera": "wfc3_ir",
+				"filter": "f140w",
+				"drzs": [ 
+					{
+						"name": "drz0",
+						"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/ic20a1010_drz.fits",
+						"flts": [ 
+							{
+								"name": "flt0", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/ic20a1ghq_flt.fits", 
+								"sources": { 
+									"qso":{
+										"ra": 150.391348483,
+										"dec": 41.8523022453,
+										"spectrum_form": "powerlaw_nu",
+										"spectrum_type": -1.32462234501,
+										"x": 550,
+										"y": 554
+									}  
+								}
+	 						}, 
+							{
+								"name": "flt1", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/ic20a1giq_flt.fits", 
+								"sources": { 
+									"qso":{
+										"ra": 150.391348483,
+										"dec": 41.8523022453,
+										"spectrum_form": "powerlaw_nu",
+										"spectrum_type": -1.32462234501,
+										"x": 554,
+										"y": 555
+									}  
+								}
+	 						}, 
+							{
+								"name": "flt2", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/ic20a1gkq_flt.fits", 
+								"sources": { 
+									"qso":{
+										"ra": 150.391348483,
+										"dec": 41.8523022453,
+										"spectrum_form": "powerlaw_nu",
+										"spectrum_type": -1.32462234501,
+										"x": 552,
+										"y": 558
+									}  
+								}
+	 						}, 
+							{
+								"name": "flt3", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/ic20a1glq_flt.fits", 
+								"sources": { 
+									"qso":{
+										"ra": 150.391348483,
+										"dec": 41.8523022453,
+										"spectrum_form": "powerlaw_nu",
+										"spectrum_type": -1.32462234501,
+										"x": 548,
+										"y": 556
+									}  
+								}
+	 						} 
+						],
+						"sources": { 
+							"qso":{
+								"ra": 150.391348483,
+								"dec": 41.8523022453,
+								"spectrum_form": "powerlaw_nu",
+								"spectrum_type": -1.32462234501,
+								"x": 589,
+								"y": 519
+							}  
+						}
+					}, 
+					{
+						"name": "drz1",
+						"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/ic20a1020_drz.fits",
+						"flts": [ 
+							{
+								"name": "flt0", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/ic20a1gnq_flt.fits", 
+								"sources": { 
+									"qso":{
+										"ra": 150.391351711,
+										"dec": 41.8523029895,
+										"spectrum_form": "powerlaw_nu",
+										"spectrum_type": -1.32462234501,
+										"x": 535,
+										"y": 540
+									}  
+								}
+	 						}, 
+							{
+								"name": "flt1", 
+								"fp": "/Users/aisun/Documents/astro/projects/feedback/followup/hst/zakamska_erq/raw_data/hst/everything/ic20a1goq_flt.fits", 
+								"sources": { 
+									"qso":{
+										"ra": 150.391351711,
+										"dec": 41.8523029895,
+										"spectrum_form": "powerlaw_nu",
+										"spectrum_type": -1.32462234501,
+										"x": 564,
+										"y": 568
+									}  
+								}
+	 						} 
+						],
+						"sources": { 
+							"qso":{
+								"ra": 150.391351711,
+								"dec": 41.8523029895,
+								"spectrum_form": "powerlaw_nu",
+								"spectrum_type": -1.32462234501,
+								"x": 599,
+								"y": 528
+							}  
+						}
+					} 
+				]
+			}
+		]
+	} 
+]

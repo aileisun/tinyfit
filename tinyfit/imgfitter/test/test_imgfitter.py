@@ -4,6 +4,7 @@ import numpy as np
 from astropy.io import fits
 import shutil
 import json
+import astropy.modeling as am
 
 from ..imgfitter import imgfitter
 from ...tinypsf import tinypsf
@@ -176,6 +177,44 @@ def test_imgfitter_fit_gaussiansmoothing():
 	assert f.result.params.sigma > 0.
 
 
+def test_imgfitter_fit_background():
+
+	xstar, ystar = 512, 511
+	nx, ny = 64, 64
+
+	fn = dir_verif+'science_img.fits'
+	fn_model = dir_verif+'j1652_wfc3_sub5.fits'
+
+	f = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny, )
+	f.set_model(filename=fn_model)
+
+	# no gaussian smoothing
+	freeparams = ['dx', 'dy', 'scale']
+	status = f.fit(x=xstar, y=ystar, freeparams=freeparams)
+
+	chisq_nobg = f.result.chisq
+	assert status
+	assert f.result.chisq > 0.
+
+	assert f.img_crop_bestfit.data.shape == (ny, nx)
+	assert f.img_crop_residual.data.shape == (ny, nx)
+
+	f.img_crop_bestfit.writeto(dir_testing+'bestfit.fits')
+	f.img_crop_residual.writeto(dir_testing+'residual.fits')
+	f.result.save(dir_testing+'result.json')
+
+	# with gaussian smoothing
+	freeparams = ['dx', 'dy', 'scale', 'background']
+	status = f.fit(x=xstar, y=ystar, freeparams=freeparams)
+	chisq_bg = f.result.chisq
+	f.img_crop_bestfit.writeto(dir_testing+'background_bestfit.fits')
+	f.img_crop_residual.writeto(dir_testing+'background_residual.fits')
+	f.result.save(dir_testing+'background_result.json')
+
+	# assert smoothing is better
+	assert chisq_bg < chisq_nobg
+	assert np.absolute(f.result.params.background) > 0
+
 def test_imgfitter_hyperfit():
 
 	# img
@@ -183,18 +222,6 @@ def test_imgfitter_hyperfit():
 	fn_img = dir_verif+'science_img.fits'
 	nx, ny = 64, 64
 
-	# # psf
-	# xstar, ystar = 512, 511
-	# camera = 'wfc3_ir'
-	# filter = 'f160w'
-	# spectrum_form = 'stellar'
-	# spectrum_type = 'k7v'
-	# diameter = 6
-	# focus = -0.5
-	# subsample = 5
-	# fn_psf = 'j1652_wfc3_star1'
-
-	# tpsf = tinypsf(camera=camera, filter=filter, position=[xstar, ystar], spectrum_form=spectrum_form, spectrum_type=spectrum_type, diameter=diameter, focus=focus, subsample=subsample, fn=fn_psf, dir_out=dir_testing)
 
 	tpsf = get_standard_tpsf()
 
@@ -529,3 +556,160 @@ def test_imgfitter_fit_param_range():
 	assert f.result.params.dx < params_range['dx'][1]
 	assert f.result.params.dy > params_range['dy'][0]
 	assert f.result.params.dy < params_range['dy'][1]
+
+
+
+def test_imgfitter_find_cropcentroid():
+	""" find centroid position in cropped image """
+	xstar, ystar = 512+2, 511+1
+	nx, ny = 64, 64
+
+	fn = dir_verif+'science_img.fits'
+	f = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny)
+
+	f._crop(xc=xstar, yc=ystar)
+	f.img_crop.writeto(dir_testing+'img_crop.fits')
+	xc_crop_new, yc_crop_new = f.find_cropcentroid()
+	print('xc_crop_new, yc_crop_new', xc_crop_new, yc_crop_new)
+	xstar_new, ystar_new = f._cropxy_to_xy(xc_crop_new, yc_crop_new)
+
+	assert f.find_cropcentroid(imgcoord=True) == (xstar_new, ystar_new)
+
+	assert (xc_crop_new > nx//2-2) & (xc_crop_new < nx//2+2)
+	assert (yc_crop_new > ny//2-2) & (yc_crop_new < ny//2+2)  
+	# assert f.img_crop.data[int(round(yc_crop_new)), int(round(xc_crop_new))] == np.max(f.img_crop.data)
+
+	f.find_cropcentroid(update=True)
+	assert f._cropxc == round(xstar_new)
+	assert f._cropyc == round(ystar_new)
+
+	# assert f.img_crop.data[ny//2, nx//2] == np.max(f.img_crop.data)
+
+
+def test_imgfitter_galfit():
+
+	xstar, ystar = 598, 518
+	nx, ny = 64, 64
+
+	fn = dir_verif+'j1232_drz.fits'
+	fn_model = dir_verif+'j1652_wfc3_sub5.fits'
+
+	galmodel = am.models.Sersic2D(amplitude=1., r_eff=8., n=4, x_0=0., y_0=0., ellip=0., theta=0.)
+
+	params_range_gal = {'amplitude': (0., 1.e5), 'r_eff':(3., 20.), 'n': (1, 4), 'x_0':(-5, 5), 'y_0':(-5, 5), 'ellip':(0., 0.5)}
+
+	galmodel.bounds['amplitude'] = params_range_gal['amplitude']
+	galmodel.bounds['r_eff'] = params_range_gal['r_eff']
+	galmodel.bounds['n'] = params_range_gal['n']
+	galmodel.bounds['x_0'] = params_range_gal['x_0']
+	galmodel.bounds['y_0'] = params_range_gal['y_0']
+	galmodel.bounds['ellip'] = params_range_gal['ellip']
+
+	f = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny, )
+	f.set_model(filename=fn_model)
+	f.set_galmodel(galmodel)
+
+	# === no gaussian smoothing
+	params_range = {'dx': (-3., 3.), 'dy': (-3., 3.), 'scale':(0., np.inf) , 'sigma':(1.e-2, 5.)}
+	params_range_gal = {'amplitude': (0., 1.e5), 'r_eff':(3., 20.), 'n': (1, 4), 'x_0':(-5, 5), 'y_0':(-5, 5), 'ellip':(0., 0.5)}
+	params_range.update(params_range_gal)
+
+	status = f.fit(x=xstar, y=ystar, freeparams=['dx', 'dy', 'scale', 'background', 'sigma'], params_range=params_range, fitgal=True, galconvpsf=False)
+
+	assert status
+	chisq = f.result.chisq 
+	assert f.result.chisq > 0.
+	assert f.result.chisq < 300.
+	assert f.result.galparams.amplitude > 0.
+	assert f.result.galparams.r_eff > 0.
+	assert f.result.galparams.n > 0.
+
+	assert f.img_crop_bestfit.data.shape == (ny, nx)
+	assert f.img_crop_residual.data.shape == (ny, nx)
+
+	f.img_crop.writeto(dir_testing+'img_crop.fits')
+	f.img_crop_residual.writeto(dir_testing+'residual_crop.fits')
+	assert os.path.isfile(dir_testing+'residual_crop.fits')
+
+	f.img_crop_bestfit.writeto(dir_testing+'bestfit_crop.fits')
+	assert os.path.isfile(dir_testing+'bestfit_crop.fits')
+
+	f.get_img_crop_galbestfit().writeto(dir_testing+'galbestfit_crop.fits')
+	assert os.path.isfile(dir_testing+'galbestfit_crop.fits')
+
+	f.get_img_crop_psfbestfit().writeto(dir_testing+'psfbestfit_crop.fits')
+	assert os.path.isfile(dir_testing+'psfbestfit_crop.fits')
+
+	f.result.save(dir_testing+'result.json')
+	assert os.path.isfile(dir_testing+'result.json')
+
+
+def test_imgfitter_galfit_galconvpsf():
+
+	xstar, ystar = 598, 518
+	nx, ny = 64, 64
+
+	fn = dir_verif+'j1232_drz.fits'
+	fn_model = dir_verif+'j1652_wfc3_sub5.fits'
+
+	galmodel = am.models.Sersic2D(amplitude=1., r_eff=8., n=4, x_0=0., y_0=0., ellip=0., theta=0.)
+
+	params_range_gal = {'amplitude': (0., 1.e5), 'r_eff':(3., 20.), 'n': (1, 4), 'x_0':(-5, 5), 'y_0':(-5, 5), 'ellip':(0., 0.5)}
+
+	galmodel.bounds['amplitude'] = params_range_gal['amplitude']
+	galmodel.bounds['r_eff'] = params_range_gal['r_eff']
+	galmodel.bounds['n'] = params_range_gal['n']
+	galmodel.bounds['x_0'] = params_range_gal['x_0']
+	galmodel.bounds['y_0'] = params_range_gal['y_0']
+	galmodel.bounds['ellip'] = params_range_gal['ellip']
+
+	f = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny, )
+	f.set_model(filename=fn_model)
+	f.set_galmodel(galmodel)
+
+	params_range = {'dx': (-3., 3.), 'dy': (-3., 3.), 'scale':(0., np.inf), 'sigma':(1.e-2, 1.)}
+	status = f.fit(x=xstar, y=ystar, freeparams=['dx', 'dy', 'scale', 'background', 'sigma'], params_range=params_range, fitgal=True, galconvpsf=True)
+	assert status
+	f.img_crop.writeto(dir_testing+'img_crop.fits')
+
+	f.img_crop_residual.writeto(dir_testing+'residual_galconvpsf.fits')
+	f.get_img_crop_galbestfit().writeto(dir_testing+'bestfit_gal_crop_galconvpsf.fits')
+	f.get_img_crop_psfbestfit().writeto(dir_testing+'bestfit_psf_crop_galconvpsf.fits')
+
+	f.result.save(dir_testing+'result_galconvpsf.json')
+
+	gaussmodel = f._get_bestfit_gaussian_model(f.get_img_crop_psfbestfit().data)
+	assert gaussmodel.x_stddev < 2.
+	assert gaussmodel.y_stddev < 2.
+	np.savetxt(dir_testing+'gauss_params.txt', gaussmodel.parameters)
+
+	gaussimg = f._get_bestfit_gaussian_image(f.get_img_crop_psfbestfit().data)
+	gaussimg.writeto(dir_testing+'gaussianpsf.fits')
+
+	assert f.result.galparams.r_eff > params_range_gal['r_eff'][0] 
+	assert f.result.galparams.r_eff < params_range_gal['r_eff'][1] 
+
+	assert f.result.galparams.n > params_range_gal['n'][0] 
+	assert f.result.galparams.n < params_range_gal['n'][1] 
+
+	assert f.result.galparams.ellip > params_range_gal['ellip'][0] 
+	assert f.result.galparams.ellip < params_range_gal['ellip'][1] 
+
+
+
+def test_imgfitter_uncrop_padbackground():
+	xstar, ystar = 598, 518
+	nx, ny = 64, 64
+
+	fn = dir_verif+'j1232_drz.fits'
+	fn_model = dir_verif+'j1652_wfc3_sub5.fits'
+	params_range = {'dx': (-3., 3.), 'dy': (-3., 3.), 'scale':(0., np.inf), 'sigma':(1.e-2, 5.)}
+
+	f = imgfitter(filename=fn, pixsize=0.13, nx=nx, ny=ny, )
+	f.set_model(filename=fn_model)
+
+	status = f.fit(x=xstar, y=ystar, freeparams=['dx', 'dy', 'scale', 'background', 'sigma'], params_range=params_range, padbackground=True)
+
+	assert hasattr(f.result.params, 'background')
+	assert status
+	assert f.img_bestfit.data[0, 0] == f.result.params.background
