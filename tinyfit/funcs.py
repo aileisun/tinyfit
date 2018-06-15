@@ -20,8 +20,9 @@ import photutils as pu
 from drizzlepac import astrodrizzle as adz
 
 import tinyfit
+from .imgobj import imgobj
 
-def funcdrz_aperture_photometry_on_crop(drz, obs, tar, source='qso', fp_image='drz_crop.fits', radii=([1., 2., 3., 4., ])*u.arcsec): 
+def funcdrz_aperture_photometry_on_crop(drz, obs, tar, source='qso', fp_image='drz_crop.fits', radii=([1., 2., 3., 4., ])*u.arcsec, stretch='linear', vmin=None, vmax=None): 
 	""" measure aperture photometry of images
 	"""
 	s = drz.sources[source]
@@ -59,7 +60,11 @@ def funcdrz_aperture_photometry_on_crop(drz, obs, tar, source='qso', fp_image='d
 	phot['ra'] = s.ra
 	phot['dec'] = s.dec
 	phot['fn_image'] = fp_image
-	cols = ['fn_image', 'ra', 'dec', 'xc_drz', 'yc_drz', 'xc_drzcrop', 'yc_drzcrop', ]+['aperture_sum_'+str(i) for i in range(len(radii))]
+	cols = ['fn_image', 'ra', 'dec', 'xc_drz', 'yc_drz', 'xc_drzcrop', 'yc_drzcrop', ]
+	if len(radii) == 1:
+		cols += ['aperture_sum']
+	else: 
+		cols += ['aperture_sum_'+str(i) for i in range(len(radii))]
 
 	phot = phot[cols]
 
@@ -74,7 +79,7 @@ def funcdrz_aperture_photometry_on_crop(drz, obs, tar, source='qso', fp_image='d
 
 	# visual
 	v = tinyfit.visual.visual(fp)
-	v.plot(fn_out=fp_root+'_aphot.pdf', colorbar=True)
+	v.plot(fn_out=fp_root+'_aphot.pdf', colorbar=True, vmin=vmin, vmax=vmax, stretch=stretch)
 	for a in apertures_pix_crop:
 		a.plot()
 	plt.savefig(fp_root+'_aphot.pdf')
@@ -96,29 +101,65 @@ def funcflt_stealresult(flt, drz, obs, tar, dir_run_from='../run_oldcentriod/', 
 	shutil.copyfile(fp_result_from, fp_result_to)
 
 
-def funcflt_psffit(flt, drz, obs, tar, source='qso', freeparams=['dx', 'dy', 'scale', 'sigma'], params_range={}, neg_penal=1., refocus=False, source_focus='star0', nx=64, ny=64, pixsize=0.13): 
-	""" fitting psf to source for each flt to produce flt/source/flt_psf.fits
+def _reset_galmodel(galmodel, target_name, tar_galparam_init):
+	"""
+	reset the params of galmodel based on the values stored in table tar_galparam_init that corresponds to the specified target. 
+
+	Args: 
+		galmodel (:obj: astropy.modeling.model)
+		target_name (str)
+		tar_galparam_init (pd dataFrame with columns 'target' and galmodel.params_name)
+	"""
+
+	row_galparam_init = tar_galparam_init[tar_galparam_init['target']==target_name][list(galmodel.param_names)]
+
+	if len(row_galparam_init) == 1: 
+		dict_galparam_init = dict(row_galparam_init.iloc[0])
+	else: 
+		raise Exception('more than one matching target in table tar_galparam_init')
+
+	for param_name in galmodel.param_names:
+		setattr(galmodel, param_name, dict_galparam_init[param_name])
+	print('reset galmodel params ', galmodel.parameters)
+
+
+def funcflt_psffit(flt, drz, obs, tar, source='qso', freeparams=['dx', 'dy', 'scale', 'sigma'], params_range={}, neg_penal=1., fitgal=False, galmodel=None, galconvpsf=False, padbackground=True, tar_galparam_init=None, saturation_mask_threshold=None, refocus=False, source_focus='star0', nx=64, ny=64, pixsize=0.13): 
+	""" fitting psf/galaxy to source for each flt to produce flt/source/flt_bestfit_psf.fits
 
 	Note:
 		If refocus is True, focus is determined from hyperfit to source_focus (e.g., 'star0') then fixed and applied to source. Otherwise, it looks for the focus in the results.json file in the directory of the source (e.g., 'star0'). 
 
+		To use galaxy fitting, set fitgal=True, and galmodel to the desired astropy model. It will be applied to source only. 
+
 	Args:
-		# fixed arguments: 
+		 / fixed arguments /
 		flt
 		drz
 		obs
 		tar
-		# user arguments:
+
+		 / source arguments /
 		source='qso'
+
+		 / fit arguments /
 		freeparams=['dx', 'dy', 'scale', 'sigma']
 		params_range={} : dictionary of ranges (tuple) that freeparams can take
 		neg_penal=1. (float): factor to penalize negative residuals
+		fitgal=False (bool)
+		galmodel=None (astropy model, optional)
+		galconvpsf=False (bool)
+		padbackground=True (bool)
+		tar_galparam_init=None (:obj: pandas dataFrame):
+			a table with columns target and galaxy param names to specify the initialization of galaxy model for each of the target. 
+		saturation_mask_threshold=None (float):
+			If set to number, in the img_crop to be used for the main fitting the pixels will be masked if it's value is higher than the threshold. 
+
+		 / procedural arguments /
 		refocus=false
 		source_focus='star0'
 		nx=64 (int): cutout size in x
 		ny=64 (int): cutout size in y
 		pixsize=0.13 (float): in arcsec
-
 	"""
 
 	# setting
@@ -147,9 +188,9 @@ def funcflt_psffit(flt, drz, obs, tar, source='qso', freeparams=['dx', 'dy', 'sc
 		f.set_model(tinypsf=tpsf)
 		f.hyperfit(x=s.x, y=s.y, freeparams=['dx', 'dy', 'scale', 'sigma'], freehyperparams=['focus'])
 		# write outputs
-		f.img_crop.writeto(s.directory+'img_crop.fits', overwrite=True)
-		f.img_crop_bestfit.writeto(s.directory+'img_crop_bestfit.fits', overwrite=True)
-		f.img_crop_residual.writeto(s.directory+'img_crop_residual.fits', overwrite=True)
+		f.img_crop.writeto(s.directory+'crop.fits', overwrite=True)
+		f.img_crop_bestfit.writeto(s.directory+'crop_bestfit.fits', overwrite=True)
+		f.img_crop_residual.writeto(s.directory+'crop_residual.fits', overwrite=True)
 		f.result.save(s.directory+'result.json')
 		focus_bestfit = f.result.hyperparams.focus
 	else: 
@@ -168,24 +209,126 @@ def funcflt_psffit(flt, drz, obs, tar, source='qso', freeparams=['dx', 'dy', 'sc
 		os.mkdir(dir_psf)
 
 	tpsf = tinyfit.tinypsf.tinypsf(camera=obs.camera, filter=obs.filter, position=[s.x, s.y], spectrum_form=s.spectrum_form, spectrum_type=s.spectrum_type, diameter=diameter, focus=focus_bestfit, subsample=subsample, fn='psf', dir_out=dir_psf, pixsize=pixsize)
+	tpsf.write_params(s.directory+'tiny_params.json')
 
 	f = tinyfit.imgfitter.imgfitter(filename=flt.fp_skysub, pixsize=pixsize, nx=nx, ny=ny)
+
+	if saturation_mask_threshold is not None:
+		f._crop(xc=s.x, yc=s.y)
+		img_crop_data = f.img_crop.data
+		img_crop_data[img_crop_data>saturation_mask_threshold] = np.nan
+		f.set_img_crop(data=img_crop_data)
+
 	f.set_model(tinypsf=tpsf)
-	tpsf.write_params(s.directory+'tiny_params.json')
-	f.fit(x=s.x, y=s.y, freeparams=freeparams, params_range=params_range, neg_penal=neg_penal)
+	if fitgal:
+		if tar_galparam_init is not None:
+			_reset_galmodel(galmodel=galmodel, target_name=tar.name, tar_galparam_init=tar_galparam_init)
+		f.set_galmodel(galmodel=galmodel)
+
+	f.fit(x=s.x, y=s.y, freeparams=freeparams, params_range=params_range, neg_penal=neg_penal, fitgal=fitgal, galconvpsf=galconvpsf, padbackground=padbackground, )
 
 	# write outputs
-	f.img_crop.writeto(s.directory+'img_crop.fits', overwrite=True)
-	f.img_crop_bestfit.writeto(s.directory+'img_crop_bestfit.fits', overwrite=True)
-	f.img_crop_residual.writeto(s.directory+'img_crop_residual.fits', overwrite=True)
+	f.img_crop.writeto(s.directory+'crop.fits', overwrite=True)
+	f.img_crop_bestfit.writeto(s.directory+'crop_bestfit.fits', overwrite=True)
+	f.img_crop_residual.writeto(s.directory+'crop_residual.fits', overwrite=True)
 	f.result.save(s.directory+'result.json')
 
-	hdus_bestfit = f.get_hdus_bestfit()
-	hdus_bestfit.writeto(s.directory+'flt_psf.fits', overwrite=True)
+	if fitgal:
+		f.get_img_crop_bestfitgal().writeto(s.directory+'crop_bestfit_gal.fits', overwrite=True)
+		f.get_img_crop_bestfitpsf().writeto(s.directory+'crop_bestfit_psf.fits', overwrite=True)
+		if galconvpsf:
+			gaussmodel = f._get_bestfit_gaussian_model(f.get_img_crop_bestfitpsf().data)
+			np.savetxt(s.directory+'psfgauss_params.txt', gaussmodel.parameters)
+
+		hdus_bestfit = f.get_hdus_bestfit()
+		hdus_bestfit.writeto(s.directory+'flt_bestfit.fits', overwrite=True)
+
+	hdus_bestfitpsf = f.get_hdus_bestfitpsf()
+	hdus_bestfitpsf.writeto(s.directory+'flt_bestfit_psf.fits', overwrite=True)
+
+
+def funcdrz_psffit(drz, obs, tar, source='qso', fn_crop='drz_psfsub_crop.fits', fn_psf='drz_psf_crop.fits', freeparams=['dx', 'dy', 'scale', 'sigma'], params_range={}, neg_penal=1., fitgal=False, galmodel=None, galconvpsf=False, padbackground=True, tar_galparam_init=None, nx=64, ny=64, pixsize=0.065): 
+	""" fitting psf to source for each drz to produce drz/source/drz_bestfit.fits
+
+	Note:
+		To use galaxy fitting, set fitgal=True, and galmodel to the desired astropy model. It will be applied to source only. 
+
+	Args:
+		 / fixed arguments /
+		drz
+		obs
+		tar
+
+		 / source arguments /
+		source='qso'
+
+		 / input arguments / 
+		fn_crop='drz_psfsub_crop.fits' (str)
+		fn_psf='drz_psf_crop.fits' (str)
+
+		 / fit arguments /
+		freeparams=['dx', 'dy', 'scale', 'sigma']
+		params_range={} : dictionary of ranges (tuple) that freeparams can take
+		neg_penal=1. (float): factor to penalize negative residuals
+		fitgal=False (bool)
+		galmodel=None (astropy model, optional)
+		galconvpsf=False (bool)
+		padbackground=True (bool)
+		tar_galparam_init=None (:obj: pandas dataFrame):
+			a table with columns target and galaxy param names to specify the initialization of galaxy model for each of the target. 
+
+		 / procedural arguments /
+		refocus=false
+		source_focus='star0'
+		nx=64 (int): cutout size in x
+		ny=64 (int): cutout size in y
+		pixsize=0.13 (float): in arcsec
+	"""
+	# source psf fit
+	s = drz.sources[source]
+	if not os.path.isdir(s.directory):
+		os.mkdir(s.directory)
+
+	dir_psf = s.directory+'psf/'
+	if not os.path.isdir(dir_psf):
+		os.mkdir(dir_psf)
+
+	f = tinyfit.imgfitter.imgfitter(data=np.array([[]]), pixsize=pixsize, nx=nx, ny=ny)
+	f.set_img_crop(fn=s.directory+fn_crop)
+	f.set_model(fn=s.directory+fn_psf, pixsize=pixsize)
+	if fitgal:
+		if tar_galparam_init is not None:
+			_reset_galmodel(galmodel=galmodel, target_name=tar.name, tar_galparam_init=tar_galparam_init)
+		f.set_galmodel(galmodel=galmodel)
+
+	f.fit(x=None, y=None, freeparams=freeparams, params_range=params_range, neg_penal=neg_penal, fitgal=fitgal, galconvpsf=galconvpsf, padbackground=padbackground, uncrop_bestfit=False)
+
+	# write outputs
+	f.img_crop.writeto(s.directory+'crop.fits', overwrite=True)
+	f.img_crop_bestfit.writeto(s.directory+'crop_bestfit.fits', overwrite=True)
+	f.img_crop_residual.writeto(s.directory+'crop_residual.fits', overwrite=True)
+	f.result.save(s.directory+'result.json')
+
+	if fitgal:
+		f.get_img_crop_bestfitgal().writeto(s.directory+'crop_bestfit_gal.fits', overwrite=True)
+		f.get_img_crop_bestfitpsf().writeto(s.directory+'crop_bestfit_psf.fits', overwrite=True)
+
+		img_crop_residual_psf = imgobj(data=f.img_crop.data - f.get_img_crop_bestfitpsf().data, pixsize=pixsize)
+		img_crop_residual_psf.writeto(s.directory+'crop_residual_psf.fits', overwrite=True)
+
+		if galconvpsf:
+			gaussmodel = f._get_bestfit_gaussian_model(f.get_img_crop_bestfitpsf().data)
+			np.savetxt(s.directory+'psfgauss_params.txt', gaussmodel.parameters)
+
+	# 	hdus_bestfit = f.get_hdus_bestfit()
+	# 	hdus_bestfit.writeto(s.directory+'drz_bestfit.fits', overwrite=True)
+
+	# hdus_bestfitpsf = f.get_hdus_bestfitpsf()
+	# hdus_bestfitpsf.writeto(s.directory+'drz_bestfit_psf.fits', overwrite=True)
 
 
 def funcdrz_psfsub(drz, obs, tar, source='qso', nx=64, ny=64, pixsize=0.13, final_pixfrac=1., fn_final_refimage='drz.fits'):
-	""" astrodrizzle flt_psf_{source}.fits to produce drz_psf_{source}.fits and subtract it from drz.fits to get drz_psfsub_source.fits. Crop drz.fits and drz_psfsub_{source}.fits to get drz_crop{source}.fits and drz_psfsub_{source}_crop{source}.fits
+	""" astrodrizzle flt_bestfit_psf.fits to produce drz_psf.fits and subtract it from drz.fits to get drz_psfsub_source.fits. Crop drz.fits and drz_psfsub.fits to get drz_crop.fits and drz_psfsub_crop.fits
 
 	Args:
 		# fixed arguments: 
@@ -205,9 +348,9 @@ def funcdrz_psfsub(drz, obs, tar, source='qso', nx=64, ny=64, pixsize=0.13, fina
 
 	drz.fp_psf = s.directory+'drz_psf.fits'
 	drz.fp_psfsub = s.directory+'drz_psfsub.fits'
-	fp_flt_psfs = [flt.sources[source].directory+'flt_psf.fits' for flt in drz.flts]
+	fp_flt_psfs = [flt.sources[source].directory+'flt_bestfit_psf.fits' for flt in drz.flts]
 
-	adz.AstroDrizzle(input=fp_flt_psfs, output=drz.fp_psf, static=False, build=True, skysub=False, driz_cr=False, preserve=False, runfile=drz.directory+'astrodrizzle_psfsub.log', final_pixfrac=final_pixfrac, final_refimage=drz.directory+fn_final_refimage)
+	adz.AstroDrizzle(input=fp_flt_psfs, output=drz.fp_psf, static=False, build=True, skysub=True, driz_cr=False, preserve=False, runfile=drz.directory+'astrodrizzle_psfsub.log', final_pixfrac=final_pixfrac, final_refimage=drz.directory+fn_final_refimage)
 
 	# PSF subtraction
 	hdus = fits.open(drz.fp_local)
@@ -216,6 +359,8 @@ def funcdrz_psfsub(drz, obs, tar, source='qso', nx=64, ny=64, pixsize=0.13, fina
 	hdus[1].data = data_psfsub
 	hdus[1].header['HISTORY'] = 'IMAGE REPLACED BY PSF SUBTRACTED IMAGE'
 	hdus[0].header['HISTORY'] = 'SCI IMAGE REPLACED BY PSF SUBTRACTED IMAGE'
+	for i in range(2, len(hdus)): # removing extensions => 2. 
+		hdus.pop()
 	hdus.writeto(drz.fp_psfsub, overwrite=True)
 
 	# crop cutouts

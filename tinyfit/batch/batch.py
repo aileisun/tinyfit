@@ -107,6 +107,40 @@ class Batch(object):
 						func(flt=flt, drz=drz, obs=obs, tar=tar, **kwargs)
 
 
+	def compileflt(self, fn, fp_out=None, observation_names=[]):
+		"""
+		return compiled csv file from the corresponding file in each of the flt directory. 
+
+		Note: 
+			new columns tar, observation, drz, flt will be added in front. 
+
+		Args:
+			fn (str): file name of the csv file, for example, 'number.csv'. 
+			fp_out=None (str): if set to str then write result as csv file to fp_out. 
+			observations_names=[] (list): if set to list of strings, e.g., ['obs0', ] then only those observations will be ran. 
+
+		Return:
+			(:obj: pandas.DataFrame)
+		"""
+		df_compiled = pd.DataFrame()
+		for tar in self.targets:
+			for obs in tar.observations:
+				if (len(observation_names)==0) | (obs.name in observation_names): 
+					for drz in obs.drzs:
+						for flt in drz.flts:
+							df = pd.read_csv(flt.directory+fn)
+							df.insert(loc=0, column='target', value=tar.name)
+							df.insert(loc=1, column='observation', value=obs.name)
+							df.insert(loc=2, column='drz', value=drz.name)
+							df.insert(loc=3, column='flt', value=flt.name)
+							df_compiled = pd.concat([df_compiled, df], ignore_index=True)
+
+		if fp_out is not None:
+			df_compiled.to_csv(fp_out, index=False)
+
+		return df_compiled
+
+
 	def compiledrz(self, fn, fp_out=None, observation_names=[]):
 		"""
 		return compiled csv file from the corresponding file in each of the drz directory. 
@@ -125,13 +159,14 @@ class Batch(object):
 		df_compiled = pd.DataFrame()
 		for tar in self.targets:
 			for obs in tar.observations:
-				if (len(observation_names)<0) | (obs.name in observation_names): 
+				if (len(observation_names)==0) | (obs.name in observation_names): 
 					for drz in obs.drzs:
-						df = pd.read_csv(drz.directory+fn)
-						df.insert(loc=0, column='target', value=tar.name)
-						df.insert(loc=1, column='observation', value=obs.name)
-						df.insert(loc=2, column='drz', value=drz.name)
-						df_compiled = pd.concat([df_compiled, df], ignore_index=True)
+						if os.path.isfile(drz.directory+fn):
+							df = pd.read_csv(drz.directory+fn)
+							df.insert(loc=0, column='target', value=tar.name)
+							df.insert(loc=1, column='observation', value=obs.name)
+							df.insert(loc=2, column='drz', value=drz.name)
+							df_compiled = pd.concat([df_compiled, df], ignore_index=True)
 
 		if fp_out is not None:
 			df_compiled.to_csv(fp_out, index=False)
@@ -189,12 +224,15 @@ class Batch(object):
 			for obs in tar.observations:
 				for drz in obs.drzs:
 					s = drz.sources[source]
-					df = pd.read_csv(s.directory+fn)
-					df.insert(loc=0, column='target', value=tar.name)
-					df.insert(loc=1, column='observation', value=obs.name)
-					df.insert(loc=2, column='drz', value=drz.name)
-					df.insert(loc=3, column='source', value=source)
-					df_compiled = pd.concat([df_compiled, df], ignore_index=True)
+					if os.path.isfile(s.directory+fn):
+						df = pd.read_csv(s.directory+fn)
+						df.insert(loc=0, column='target', value=tar.name)
+						df.insert(loc=1, column='observation', value=obs.name)
+						df.insert(loc=2, column='drz', value=drz.name)
+						df.insert(loc=3, column='source', value=source)
+						df_compiled = pd.concat([df_compiled, df], ignore_index=True)
+					else:
+						print('skipe compiling drz file', tar.name, obs.name, drz.name)
 
 		if fp_out is not None:
 			df_compiled.to_csv(fp_out, index=False)

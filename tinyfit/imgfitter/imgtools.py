@@ -2,6 +2,60 @@
 
 import numpy as np
 import scipy.ndimage as sn
+import photutils as pu
+from astropy.io import fits
+from scipy import optimize
+from scipy.interpolate import UnivariateSpline
+import astropy.table as at
+
+
+def _find_a_root(x, y ): 
+	spl = UnivariateSpline(x, y, k=1, s=0)
+	root = optimize.newton(spl, 2.)
+	return root
+
+
+def petrosian_radiu(data, r_step=5., petrosian_ratio=0.2):
+	""" measure petrosian radiu in units of pixel from data. 
+	
+	Note: 
+		Centroid position is determined from data
+
+	Args: 
+		data (2d np array)
+		r_step=5. (float): aperture radius steps in units of pixel
+		petrosian_ratio=0.2: the surface brightness at r_petrosian is petrosian_ratio times the surface brightness within r_petrosian. 
+	"""
+	ny, nx = data.shape
+	xc, yc = pu.centroid_1dg(data)
+	rs = np.arange(r_step, ny//2, r_step)
+
+	apts = [pu.CircularAperture(positions=(xc, yc), r=r) for r in rs]
+
+	tab = at.Table(pu.aperture_photometry(data, apts))
+
+	if len(rs) == 1:
+		cols = ['aperture_sum']
+	else: 
+		cols = ['aperture_sum_'+str(i) for i in range(len(rs))]
+
+	aperture_sum = np.array(list(tab[cols][0]))
+	annulus_sum = np.zeros_like(rs)
+	annulus_sum[0] = aperture_sum[0]
+	for i in range(1, len(rs)):
+		annulus_sum[i] = aperture_sum[i] - aperture_sum[i-1]
+
+	aperture_areas = np.pi*rs**2
+	annulus_areas = np.append(aperture_areas[0], np.diff(aperture_areas))
+
+	annulus_avg = annulus_sum/annulus_areas
+	aperture_avg = aperture_sum/aperture_areas
+
+	diff = annulus_avg - aperture_avg*petrosian_ratio
+
+	r_petrosian = _find_a_root(x=rs, y=diff)
+
+	return r_petrosian
 
 
 def get_cutout_xy_range(xc, yc, nx, ny):

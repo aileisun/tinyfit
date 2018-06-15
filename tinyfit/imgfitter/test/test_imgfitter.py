@@ -634,10 +634,10 @@ def test_imgfitter_galfit():
 	f.img_crop_bestfit.writeto(dir_testing+'bestfit_crop.fits')
 	assert os.path.isfile(dir_testing+'bestfit_crop.fits')
 
-	f.get_img_crop_galbestfit().writeto(dir_testing+'galbestfit_crop.fits')
+	f.get_img_crop_bestfitgal().writeto(dir_testing+'galbestfit_crop.fits')
 	assert os.path.isfile(dir_testing+'galbestfit_crop.fits')
 
-	f.get_img_crop_psfbestfit().writeto(dir_testing+'psfbestfit_crop.fits')
+	f.get_img_crop_bestfitpsf().writeto(dir_testing+'psfbestfit_crop.fits')
 	assert os.path.isfile(dir_testing+'psfbestfit_crop.fits')
 
 	f.result.save(dir_testing+'result.json')
@@ -673,17 +673,17 @@ def test_imgfitter_galfit_galconvpsf():
 	f.img_crop.writeto(dir_testing+'img_crop.fits')
 
 	f.img_crop_residual.writeto(dir_testing+'residual_galconvpsf.fits')
-	f.get_img_crop_galbestfit().writeto(dir_testing+'bestfit_gal_crop_galconvpsf.fits')
-	f.get_img_crop_psfbestfit().writeto(dir_testing+'bestfit_psf_crop_galconvpsf.fits')
+	f.get_img_crop_bestfitgal().writeto(dir_testing+'bestfit_gal_crop_galconvpsf.fits')
+	f.get_img_crop_bestfitpsf().writeto(dir_testing+'bestfit_psf_crop_galconvpsf.fits')
 
 	f.result.save(dir_testing+'result_galconvpsf.json')
 
-	gaussmodel = f._get_bestfit_gaussian_model(f.get_img_crop_psfbestfit().data)
+	gaussmodel = f._get_bestfit_gaussian_model(f.get_img_crop_bestfitpsf().data)
 	assert gaussmodel.x_stddev < 2.
 	assert gaussmodel.y_stddev < 2.
 	np.savetxt(dir_testing+'gauss_params.txt', gaussmodel.parameters)
 
-	gaussimg = f._get_bestfit_gaussian_image(f.get_img_crop_psfbestfit().data)
+	gaussimg = f._get_bestfit_gaussian_image(f.get_img_crop_bestfitpsf().data)
 	gaussimg.writeto(dir_testing+'gaussianpsf.fits')
 
 	assert f.result.galparams.r_eff > params_range_gal['r_eff'][0] 
